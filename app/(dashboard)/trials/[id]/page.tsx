@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic'
 async function getTrialData(id: string) {
   const supabase = createServerSupabaseClient()
 
-  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemRes, tissueRes, metadataRes] = await Promise.all([
+  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemRes, tissueRes, metadataRes, photosRes] = await Promise.all([
     supabase.from('trials').select('*').eq('id', id).single(),
     supabase.from('treatments').select('*').eq('trial_id', id).order('sort_order'),
     supabase.from('soil_health_samples').select('*').eq('trial_id', id).order('sample_no'),
@@ -29,6 +29,7 @@ async function getTrialData(id: string) {
     supabase.from('soil_chemistry').select('*').eq('trial_id', id),
     supabase.from('tissue_chemistry').select('*').eq('trial_id', id),
     supabase.from('sample_metadata').select('*').eq('trial_id', id).order('sample_no'),
+    supabase.from('trial_photos').select('*').eq('trial_id', id).order('created_at', { ascending: false }),
   ])
 
   if (trialRes.error || !trialRes.data) return null
@@ -41,6 +42,7 @@ async function getTrialData(id: string) {
     plotData: false,
     tissueChemistry: false,
     sampleMetadata: false,
+    photo: false,
   }
   for (const df of dataFiles) {
     dataCoverage[df.file_type] = df.has_data
@@ -65,6 +67,7 @@ async function getTrialData(id: string) {
     chemistryCount: (chemRes.data || []).length,
     tissueCount: (tissueRes.data || []).length,
     metadata: metadataRes.data || [],
+    photos: photosRes.data || [],
   }
 }
 
@@ -78,7 +81,7 @@ export default async function TrialDetailPage({
 
   if (!data) notFound()
 
-  const { trial, treatments, samples, plots, log, dataCoverage, metadata } = data
+  const { trial, treatments, samples, plots, log, dataCoverage, metadata, photos } = data
 
   return (
     <div>
@@ -113,6 +116,7 @@ export default async function TrialDetailPage({
           <DataBadge label="Plot Data" hasData={dataCoverage.plotData} />
           <DataBadge label="Tissue" hasData={dataCoverage.tissueChemistry} />
           <DataBadge label="Assay Results" hasData={dataCoverage.sampleMetadata} />
+          <DataBadge label="Photos" hasData={dataCoverage.photo || photos.length > 0} />
         </div>
       </div>
 
@@ -125,6 +129,8 @@ export default async function TrialDetailPage({
         log={log}
         dataCoverage={dataCoverage}
         metadata={metadata}
+        photos={photos}
+        supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
       />
     </div>
   )
