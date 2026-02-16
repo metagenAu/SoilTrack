@@ -191,11 +191,11 @@ export default function AnalysisClient({ trials, assayTypes }: AnalysisClientPro
             )}
           </div>
           {selectedTrials.length === 0 && trials.length > 0 && (
-            <p className="text-xs text-brand-grey-1 mt-1">No trials selected — will analyse across all trials</p>
+            <p className="text-xs text-brand-grey-1 mt-1">Select at least one trial to run analysis</p>
           )}
         </div>
 
-        <Button onClick={runAnalysis} disabled={loading}>
+        <Button onClick={runAnalysis} disabled={loading || selectedTrials.length === 0}>
           {loading ? (
             <>
               <Loader2 size={14} className="animate-spin" />

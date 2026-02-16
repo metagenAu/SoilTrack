@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
-import { LogOut, Database, Download, CheckCircle, XCircle } from 'lucide-react'
+import { LogOut, Download, CheckCircle, XCircle } from 'lucide-react'
 
 const EXPORT_TABLES = [
   { key: 'trials', label: 'Trials' },
@@ -28,11 +28,10 @@ export default function SettingsClient({ user }: { user: any }) {
   async function handleExport(table: string) {
     setExporting(table)
     try {
-      const { data, error } = await supabase.from(table).select('*')
-      if (error) throw error
+      const res = await fetch(`/api/export?table=${encodeURIComponent(table)}`)
+      if (!res.ok) throw new Error('Export failed')
 
-      const csv = convertToCSV(data || [])
-      const blob = new Blob([csv], { type: 'text/csv' })
+      const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -43,22 +42,6 @@ export default function SettingsClient({ user }: { user: any }) {
       console.error('Export failed:', err)
     }
     setExporting(null)
-  }
-
-  function convertToCSV(data: Record<string, any>[]): string {
-    if (data.length === 0) return ''
-    const headers = Object.keys(data[0])
-    const rows = data.map(row =>
-      headers.map(h => {
-        const val = row[h]
-        if (val === null || val === undefined) return ''
-        const str = typeof val === 'object' ? JSON.stringify(val) : String(val)
-        return str.includes(',') || str.includes('"') || str.includes('\n')
-          ? `"${str.replace(/"/g, '""')}"`
-          : str
-      }).join(',')
-    )
-    return [headers.join(','), ...rows].join('\n')
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
