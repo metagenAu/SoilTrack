@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { classifyFile } from '@/lib/parsers/classify'
 import { parseTrialSummary } from '@/lib/parsers/parseTrialSummary'
-import { parseSoilHealth } from '@/lib/parsers/parseSoilHealth'
-import { parseSoilChemistry } from '@/lib/parsers/parseSoilChemistry'
-import { parsePlotData } from '@/lib/parsers/parsePlotData'
-import { parseTissueChemistry } from '@/lib/parsers/parseTissueChemistry'
-import { parseSampleMetadata } from '@/lib/parsers/parseSampleMetadata'
+import { runPipeline } from '@/lib/upload-pipeline'
 
 export const maxDuration = 60
 
@@ -24,8 +20,7 @@ export async function POST(request: NextRequest) {
   const classification = fileType === 'auto' ? classifyFile(file.name) : fileType
 
   try {
-    let records = 0
-
+    // Trial summary still uses its own parser (not a data table)
     if (classification === 'trialSummary') {
       const buffer = await file.arrayBuffer()
       const parsed = parseTrialSummary(buffer)
@@ -59,57 +54,44 @@ export async function POST(request: NextRequest) {
           }))
         )
       }
-      records = parsed.treatments.length
 
-    } else if (classification === 'soilHealth') {
-      const text = await file.text()
-      const rows = parseSoilHealth(text)
-      await supabase.from('soil_health_samples').insert(rows.map(r => ({ trial_id: trialId, ...r })))
-      await supabase.from('trial_data_files').upsert({ trial_id: trialId, file_type: 'soilHealth', has_data: true })
-      records = rows.length
+      await supabase.from('upload_log').insert({
+        trial_id: trialId,
+        filename: file.name,
+        file_type: 'trialSummary',
+        status: 'success',
+        records_imported: parsed.treatments.length,
+      })
 
-    } else if (classification === 'soilChemistry') {
-      const text = await file.text()
-      const rows = parseSoilChemistry(text)
-      await supabase.from('soil_chemistry').insert(rows.map(r => ({ trial_id: trialId, ...r })))
-      await supabase.from('trial_data_files').upsert({ trial_id: trialId, file_type: 'soilChemistry', has_data: true })
-      records = rows.length
-
-    } else if (classification === 'plotData') {
-      const text = await file.text()
-      const rows = parsePlotData(text)
-      await supabase.from('plot_data').insert(rows.map(r => ({ trial_id: trialId, ...r })))
-      await supabase.from('trial_data_files').upsert({ trial_id: trialId, file_type: 'plotData', has_data: true })
-      records = rows.length
-
-    } else if (classification === 'tissueChemistry') {
-      const buffer = await file.arrayBuffer()
-      const rows = parseTissueChemistry(buffer)
-      await supabase.from('tissue_chemistry').insert(rows.map(r => ({ trial_id: trialId, ...r })))
-      await supabase.from('trial_data_files').upsert({ trial_id: trialId, file_type: 'tissueChemistry', has_data: true })
-      records = rows.length
-
-    } else if (classification === 'sampleMetadata') {
-      const text = await file.text()
-      const assayType = formData.get('assayType') as string || 'general'
-      const rows = parseSampleMetadata(text, assayType)
-      await supabase.from('sample_metadata').insert(rows.map(r => ({ trial_id: trialId, ...r })))
-      await supabase.from('trial_data_files').upsert({ trial_id: trialId, file_type: 'sampleMetadata', has_data: true })
-      records = rows.length
-
-    } else {
-      return NextResponse.json({ status: 'error', detail: 'Unrecognized file type' })
+      return NextResponse.json({ status: 'success', detail: 'Trial updated', records: parsed.treatments.length })
     }
 
-    await supabase.from('upload_log').insert({
-      trial_id: trialId,
-      filename: file.name,
-      file_type: classification,
-      status: 'success',
-      records_imported: records,
-    })
+    // All data types go through the pipeline
+    const isExcel = classification === 'tissueChemistry'
+    const content = isExcel ? await file.arrayBuffer() : await file.text()
 
-    return NextResponse.json({ status: 'success', detail: `Imported successfully`, records })
+    const extraDefaults: Record<string, any> = {}
+    if (classification === 'sampleMetadata') {
+      extraDefaults.assay_type = (formData.get('assayType') as string) || 'general'
+    }
+
+    const result = await runPipeline(
+      supabase,
+      trialId,
+      classification,
+      file.name,
+      content,
+      isExcel,
+      { extraDefaults: Object.keys(extraDefaults).length > 0 ? extraDefaults : undefined }
+    )
+
+    return NextResponse.json({
+      status: result.status,
+      detail: result.detail,
+      records: result.records,
+      rawUploadId: result.rawUploadId,
+      unmappedColumns: result.unmappedColumns,
+    })
   } catch (err: any) {
     await supabase.from('upload_log').insert({
       trial_id: trialId,

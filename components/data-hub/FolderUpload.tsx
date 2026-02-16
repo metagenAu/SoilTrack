@@ -1,17 +1,20 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { FolderUp, FileText, CheckCircle, XCircle, Loader2, Clock } from 'lucide-react'
+import { FolderUp, FileText, CheckCircle, XCircle, Loader2, Clock, AlertTriangle } from 'lucide-react'
 import Button from '@/components/ui/Button'
+import ColumnReview from './ColumnReview'
 import { cn } from '@/lib/utils'
 import { classifyFile, type FileClassification } from '@/lib/parsers/classify'
 
 interface FileResult {
   filename: string
   type: string
-  status: 'success' | 'error' | 'processing' | 'pending'
+  status: 'success' | 'error' | 'processing' | 'pending' | 'needs_review'
   detail?: string
   records?: number
+  rawUploadId?: string
+  unmappedColumns?: string[]
 }
 
 const TYPE_LABELS: Record<FileClassification, string> = {
@@ -93,6 +96,7 @@ export default function FolderUpload() {
   const [uploading, setUploading] = useState(false)
   const [trialId, setTrialId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [reviewTarget, setReviewTarget] = useState<FileResult | null>(null)
 
   const handleFiles = useCallback((fileArr: File[]) => {
     // Sort so trial summary comes first (needed for processing order)
@@ -174,9 +178,11 @@ export default function FolderUpload() {
           if (serverResult) {
             return {
               ...r,
-              status: serverResult.status as 'success' | 'error',
+              status: serverResult.status as FileResult['status'],
               detail: serverResult.detail,
               records: serverResult.records,
+              rawUploadId: serverResult.rawUploadId,
+              unmappedColumns: serverResult.unmappedColumns,
             }
           }
           return r
@@ -193,6 +199,17 @@ export default function FolderUpload() {
     }
 
     setUploading(false)
+  }
+
+  function handleReviewComplete(reviewResult: { status: string; records?: number; detail?: string }) {
+    if (reviewTarget) {
+      setResults(prev => prev.map(r =>
+        r.filename === reviewTarget.filename
+          ? { ...r, status: reviewResult.status as FileResult['status'], detail: reviewResult.detail, records: reviewResult.records }
+          : r
+      ))
+    }
+    setReviewTarget(null)
   }
 
   return (
@@ -261,6 +278,7 @@ export default function FolderUpload() {
                 {r.status === 'error' && <XCircle size={16} className="text-red-500 flex-shrink-0" />}
                 {r.status === 'processing' && <Loader2 size={16} className="text-meta-blue animate-spin flex-shrink-0" />}
                 {r.status === 'pending' && <Clock size={16} className="text-brand-grey-1 flex-shrink-0" />}
+                {r.status === 'needs_review' && <AlertTriangle size={16} className="text-amber-600 flex-shrink-0" />}
                 <FileText size={14} className="text-brand-grey-1 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-brand-black truncate">{r.filename}</p>
@@ -269,6 +287,15 @@ export default function FolderUpload() {
                     {r.detail ? ` — ${r.detail}` : ''}
                   </p>
                 </div>
+                {r.status === 'needs_review' && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setReviewTarget(r)}
+                  >
+                    Review
+                  </Button>
+                )}
               </div>
             ))}
           </div>
@@ -284,6 +311,23 @@ export default function FolderUpload() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Column review modal */}
+      {reviewTarget?.rawUploadId && reviewTarget?.unmappedColumns && (
+        <ColumnReview
+          open={!!reviewTarget}
+          onClose={() => setReviewTarget(null)}
+          rawUploadId={reviewTarget.rawUploadId}
+          fileType={reviewTarget.type === 'Plot Data' ? 'plotData' :
+                    reviewTarget.type === 'Soil Health' ? 'soilHealth' :
+                    reviewTarget.type === 'Soil Chemistry' ? 'soilChemistry' :
+                    reviewTarget.type === 'Tissue Chemistry' ? 'tissueChemistry' :
+                    reviewTarget.type === 'Assay Results' ? 'sampleMetadata' :
+                    reviewTarget.type}
+          unmappedColumns={reviewTarget.unmappedColumns}
+          onComplete={handleReviewComplete}
+        />
       )}
     </div>
   )

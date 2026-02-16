@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { FileUp, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { FileUp, CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react'
 import Button from '@/components/ui/Button'
+import ColumnReview from './ColumnReview'
 import { cn } from '@/lib/utils'
 
 const FILE_TYPES = [
@@ -16,9 +17,11 @@ const FILE_TYPES = [
 ]
 
 interface UploadResult {
-  status: 'success' | 'error'
+  status: 'success' | 'error' | 'needs_review'
   detail: string
   records?: number
+  rawUploadId?: string
+  unmappedColumns?: string[]
 }
 
 export default function SingleFileUpload({ trials }: { trials: { id: string; name: string }[] }) {
@@ -28,6 +31,7 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<UploadResult | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [reviewOpen, setReviewOpen] = useState(false)
 
   async function handleUpload() {
     if (!file || !selectedTrial) return
@@ -46,10 +50,22 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
       })
       const data = await res.json()
       setResult(data)
+      if (data.status === 'needs_review') {
+        setReviewOpen(true)
+      }
     } catch {
       setResult({ status: 'error', detail: 'Upload failed' })
     }
     setUploading(false)
+  }
+
+  function handleReviewComplete(reviewResult: { status: string; records?: number; detail?: string }) {
+    setReviewOpen(false)
+    setResult({
+      status: reviewResult.status as 'success' | 'error',
+      detail: reviewResult.detail || '',
+      records: reviewResult.records,
+    })
   }
 
   return (
@@ -127,18 +143,45 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
       {result && (
         <div className={cn(
           'flex items-center gap-2 p-3 rounded-lg',
-          result.status === 'success' ? 'bg-green-lush/10' : 'bg-red-50'
+          result.status === 'success' ? 'bg-green-lush/10' :
+          result.status === 'needs_review' ? 'bg-amber-50' : 'bg-red-50'
         )}>
-          {result.status === 'success' ? (
+          {result.status === 'success' && (
             <CheckCircle size={16} className="text-green-lush" />
-          ) : (
+          )}
+          {result.status === 'needs_review' && (
+            <AlertTriangle size={16} className="text-amber-600" />
+          )}
+          {result.status === 'error' && (
             <XCircle size={16} className="text-red-500" />
           )}
           <p className="text-sm">
             {result.detail}
             {result.records !== undefined && ` (${result.records} records)`}
           </p>
+          {result.status === 'needs_review' && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setReviewOpen(true)}
+              className="ml-auto"
+            >
+              Review
+            </Button>
+          )}
         </div>
+      )}
+
+      {/* Column review modal */}
+      {result?.rawUploadId && result?.unmappedColumns && (
+        <ColumnReview
+          open={reviewOpen}
+          onClose={() => setReviewOpen(false)}
+          rawUploadId={result.rawUploadId}
+          fileType={fileType === 'auto' ? 'plotData' : fileType}
+          unmappedColumns={result.unmappedColumns}
+          onComplete={handleReviewComplete}
+        />
       )}
     </div>
   )
