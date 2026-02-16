@@ -7,6 +7,8 @@ import { parseSoilChemistry } from '@/lib/parsers/parseSoilChemistry'
 import { parsePlotData } from '@/lib/parsers/parsePlotData'
 import { parseTissueChemistry } from '@/lib/parsers/parseTissueChemistry'
 
+export const maxDuration = 60
+
 interface FileResult {
   filename: string
   type: string
