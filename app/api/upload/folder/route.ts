@@ -237,7 +237,44 @@ export async function POST(request: NextRequest) {
         results.push({ filename: file.name, type: 'Assay Results', status: 'success', records: rows.length })
 
       } else if (classification === 'photo') {
-        results.push({ filename: file.name, type: 'Photo', status: 'success', detail: 'Skipped (photo storage not yet configured)' })
+        const targetTrialId = trialId
+        if (!targetTrialId) {
+          results.push({ filename: file.name, type: 'Photo', status: 'error', detail: 'No trial context — upload a Trial Summary first' })
+          continue
+        }
+
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+        const storagePath = `${targetTrialId}/${crypto.randomUUID()}.${ext}`
+
+        const buffer = await file.arrayBuffer()
+        const { error: storageError } = await supabase.storage
+          .from('trial-photos')
+          .upload(storagePath, buffer, {
+            contentType: file.type || `image/${ext}`,
+            upsert: false,
+          })
+
+        if (storageError) throw storageError
+
+        const { error: dbError } = await supabase.from('trial_photos').insert({
+          trial_id: targetTrialId,
+          filename: file.name,
+          storage_path: storagePath,
+        })
+
+        if (dbError) throw dbError
+
+        await supabase.from('trial_data_files').upsert({
+          trial_id: targetTrialId, file_type: 'photo', has_data: true, last_updated: new Date().toISOString(),
+        })
+
+        await supabase.from('upload_log').insert({
+          trial_id: targetTrialId, filename: file.name, file_type: 'photo',
+          status: 'success', records_imported: 1,
+        })
+
+        results.push({ filename: file.name, type: 'Photo', status: 'success', detail: 'Photo uploaded', records: 1 })
+
       } else {
         // Skip unrecognized files silently (e.g. READMEs, system files)
         results.push({ filename: file.name, type: 'Unknown', status: 'success', detail: 'Skipped — not a recognised data file' })
