@@ -12,6 +12,7 @@ const FILE_TYPES = [
   { value: 'soilChemistry', label: 'Soil Chemistry Data (.csv)' },
   { value: 'plotData', label: 'Plot Data (.csv)' },
   { value: 'tissueChemistry', label: 'Tissue Chemistry (.xlsx)' },
+  { value: 'sampleMetadata', label: 'Assay Results (.csv)' },
 ]
 
 interface UploadResult {

@@ -6,6 +6,7 @@ import { parseSoilHealth } from '@/lib/parsers/parseSoilHealth'
 import { parseSoilChemistry } from '@/lib/parsers/parseSoilChemistry'
 import { parsePlotData } from '@/lib/parsers/parsePlotData'
 import { parseTissueChemistry } from '@/lib/parsers/parseTissueChemistry'
+import { parseSampleMetadata } from '@/lib/parsers/parseSampleMetadata'
 
 export const maxDuration = 60
 
@@ -86,6 +87,14 @@ export async function POST(request: NextRequest) {
       const rows = parseTissueChemistry(buffer)
       await supabase.from('tissue_chemistry').insert(rows.map(r => ({ trial_id: trialId, ...r })))
       await supabase.from('trial_data_files').upsert({ trial_id: trialId, file_type: 'tissueChemistry', has_data: true })
+      records = rows.length
+
+    } else if (classification === 'sampleMetadata') {
+      const text = await file.text()
+      const assayType = formData.get('assayType') as string || 'general'
+      const rows = parseSampleMetadata(text, assayType)
+      await supabase.from('sample_metadata').insert(rows.map(r => ({ trial_id: trialId, ...r })))
+      await supabase.from('trial_data_files').upsert({ trial_id: trialId, file_type: 'sampleMetadata', has_data: true })
       records = rows.length
 
     } else {
