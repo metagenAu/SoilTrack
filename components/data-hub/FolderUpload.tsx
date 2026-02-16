@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
-import { FolderUp, FileText, CheckCircle, XCircle, Loader2, Clock, AlertTriangle } from 'lucide-react'
+import { FolderUp, FileText, CheckCircle, XCircle, Loader2, Clock, AlertTriangle, X } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import ColumnReview, { type ReviewItem } from './ColumnReview'
 import { cn } from '@/lib/utils'
@@ -114,6 +114,11 @@ export default function FolderUpload() {
       type: TYPE_LABELS[classifyFile(f.name)],
       status: 'pending' as const,
     })))
+  }, [])
+
+  const removeFile = useCallback((index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index))
+    setResults(prev => prev.filter((_, i) => i !== index))
   }, [])
 
   async function handleUpload() {
@@ -508,6 +513,16 @@ export default function FolderUpload() {
                   >
                     Review
                   </Button>
+                )}
+                {!uploading && (
+                  <button
+                    type="button"
+                    onClick={() => removeFile(i)}
+                    className="p-1 rounded hover:bg-brand-grey-2 text-brand-grey-1 hover:text-red-500 transition-colors flex-shrink-0"
+                    aria-label={`Remove ${r.filename}`}
+                  >
+                    <X size={14} />
+                  </button>
                 )}
               </div>
             ))}
