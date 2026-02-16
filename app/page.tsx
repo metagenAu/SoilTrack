@@ -1,5 +1,6 @@
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
+import Image from 'next/image'
 import ParticleNetwork from '@/components/landing/ParticleNetwork'
 import AnimatedCounter from '@/components/landing/AnimatedCounter'
 
@@ -79,23 +80,11 @@ export default async function LandingPage() {
         .landing-logo {
           display: flex;
           align-items: center;
-          gap: 10px;
         }
-        .landing-logo-icon {
-          width: 36px; height: 36px;
-          border-radius: 8px;
-          background: rgba(255,255,255,0.15);
-          backdrop-filter: blur(10px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 700;
-          font-size: 16px;
-          color: #fff;
+        .landing-logo img {
+          height: 40px;
+          width: auto;
         }
-        .landing-wm { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; line-height: 1.1; }
-        .landing-wm span { font-weight: 300; }
-        .landing-wm sup { font-size: 7px; letter-spacing: 1px; vertical-align: super; opacity: 0.5; margin-left: 1px; }
 
         .landing-topbar a {
           color: rgba(255,255,255,0.6);
@@ -424,12 +413,13 @@ export default async function LandingPage() {
 
         <div className="landing-topbar">
           <div className="landing-logo">
-            <div className="landing-logo-icon">M</div>
-            <div>
-              <div className="landing-wm">
-                <strong>meta</strong><span>gen</span><sup>AUS</sup>
-              </div>
-            </div>
+            <Image
+              src="/metagen-logo-white.svg"
+              alt="Metagen Australia"
+              width={180}
+              height={40}
+              priority
+            />
           </div>
           <Link href="/login">Sign In</Link>
         </div>
