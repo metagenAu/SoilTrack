@@ -7,18 +7,39 @@ import Button from '@/components/ui/Button'
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<'login' | 'signup' | 'magic'>('login')
+  const [mode, setMode] = useState<'login' | 'signup' | 'magic' | 'forgot'>('login')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [showResendConfirmation, setShowResendConfirmation] = useState(false)
 
   const supabase = createClient()
+
+  async function handleResendConfirmation() {
+    setLoading(true)
+    setError('')
+    setMessage('')
+    const redirectTo = `${window.location.origin}/auth/callback`
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: redirectTo },
+    })
+    if (error) {
+      setError(error.message)
+    } else {
+      setMessage('Confirmation email resent. Please check your inbox.')
+      setShowResendConfirmation(false)
+    }
+    setLoading(false)
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
     setMessage('')
+    setShowResendConfirmation(false)
 
     if (mode === 'magic') {
       const redirectTo = `${window.location.origin}/auth/callback`
@@ -44,9 +65,28 @@ export default function LoginPage() {
       return
     }
 
+    if (mode === 'forgot') {
+      const redirectTo = `${window.location.origin}/auth/callback?type=recovery`
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      })
+      if (error) {
+        setError(error.message)
+      } else {
+        setMessage('Check your email for the password reset link.')
+      }
+      setLoading(false)
+      return
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      setError(error.message)
+      if (error.message.toLowerCase().includes('email not confirmed')) {
+        setError('Your email address has not been confirmed yet.')
+        setShowResendConfirmation(true)
+      } else {
+        setError(error.message)
+      }
     } else {
       window.location.href = '/'
     }
@@ -75,6 +115,7 @@ export default function LoginPage() {
             {mode === 'login' && 'Sign in'}
             {mode === 'signup' && 'Create account'}
             {mode === 'magic' && 'Magic link'}
+            {mode === 'forgot' && 'Reset password'}
           </h2>
 
           <form onSubmit={handleLogin} className="space-y-3">
@@ -90,7 +131,7 @@ export default function LoginPage() {
               />
             </div>
 
-            {mode !== 'magic' && (
+            {(mode === 'login' || mode === 'signup') && (
               <div>
                 <label className="signpost-label block mb-1">Password</label>
                 <input
@@ -107,27 +148,53 @@ export default function LoginPage() {
             {error && (
               <p className="text-red-500 text-xs">{error}</p>
             )}
+            {showResendConfirmation && (
+              <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={loading}
+                className="text-xs text-meta-blue hover:underline"
+              >
+                Resend confirmation email
+              </button>
+            )}
             {message && (
               <p className="text-green-lush text-xs">{message}</p>
             )}
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Loading...' : mode === 'login' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Send magic link'}
+              {loading
+                ? 'Loading...'
+                : mode === 'login'
+                  ? 'Sign in'
+                  : mode === 'signup'
+                    ? 'Create account'
+                    : mode === 'forgot'
+                      ? 'Send reset link'
+                      : 'Send magic link'}
             </Button>
           </form>
 
           <div className="mt-4 text-center space-y-1">
             {mode !== 'login' && (
               <button
-                onClick={() => setMode('login')}
+                onClick={() => { setMode('login'); setError(''); setMessage(''); setShowResendConfirmation(false) }}
                 className="text-xs text-meta-blue hover:underline block mx-auto"
               >
                 Sign in with password
               </button>
             )}
+            {mode === 'login' && (
+              <button
+                onClick={() => { setMode('forgot'); setError(''); setMessage(''); setShowResendConfirmation(false) }}
+                className="text-xs text-meta-blue hover:underline block mx-auto"
+              >
+                Forgot password?
+              </button>
+            )}
             {mode !== 'signup' && (
               <button
-                onClick={() => setMode('signup')}
+                onClick={() => { setMode('signup'); setError(''); setMessage(''); setShowResendConfirmation(false) }}
                 className="text-xs text-meta-blue hover:underline block mx-auto"
               >
                 Create account
@@ -135,7 +202,7 @@ export default function LoginPage() {
             )}
             {mode !== 'magic' && (
               <button
-                onClick={() => setMode('magic')}
+                onClick={() => { setMode('magic'); setError(''); setMessage(''); setShowResendConfirmation(false) }}
                 className="text-xs text-meta-blue hover:underline block mx-auto"
               >
                 Use magic link instead
