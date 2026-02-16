@@ -9,16 +9,26 @@ export async function GET(request: Request) {
   const type = searchParams.get('type') as EmailOtpType | null
   const next = searchParams.get('next') ?? '/'
 
-  // Invited users should set up their password before accessing the app
-  const redirectTo = type === 'invite' ? '/reset-password' : next
-
   const supabase = createServerSupabaseClient()
 
   // Handle PKCE code exchange (magic links, OAuth, invitations with PKCE)
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      return NextResponse.redirect(`${origin}${redirectTo}`)
+      // With PKCE the type param is not forwarded, so check the JWT's AMR
+      // (Authentication Methods Reference) to detect invite acceptance
+      let isInvite = type === 'invite'
+      if (!isInvite && data.session) {
+        try {
+          const payload = JSON.parse(
+            Buffer.from(data.session.access_token.split('.')[1], 'base64').toString()
+          )
+          isInvite = (payload.amr || []).some((entry: { method: string }) => entry.method === 'invite')
+        } catch {
+          // JWT parsing failed — fall through to default redirect
+        }
+      }
+      return NextResponse.redirect(`${origin}${isInvite ? '/reset-password' : next}`)
     }
   }
 
@@ -26,7 +36,7 @@ export async function GET(request: Request) {
   if (token_hash && type) {
     const { error } = await supabase.auth.verifyOtp({ token_hash, type })
     if (!error) {
-      return NextResponse.redirect(`${origin}${redirectTo}`)
+      return NextResponse.redirect(`${origin}${type === 'invite' ? '/reset-password' : next}`)
     }
   }
 

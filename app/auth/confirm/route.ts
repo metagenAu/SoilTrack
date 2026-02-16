@@ -8,15 +8,27 @@ export async function GET(request: Request) {
   const type = searchParams.get('type') as EmailOtpType | null
   const next = searchParams.get('next') ?? '/'
 
-  // Invited users should set up their password before accessing the app
-  const redirectTo = type === 'invite' ? '/reset-password' : next
-
   if (token_hash && type) {
     const supabase = createServerSupabaseClient()
     const { error } = await supabase.auth.verifyOtp({ token_hash, type })
 
     if (!error) {
-      return NextResponse.redirect(`${origin}${redirectTo}`)
+      // Redirect invited users to set up their password
+      let isInvite = type === 'invite'
+      if (!isInvite) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session) {
+            const payload = JSON.parse(
+              Buffer.from(session.access_token.split('.')[1], 'base64').toString()
+            )
+            isInvite = (payload.amr || []).some((entry: { method: string }) => entry.method === 'invite')
+          }
+        } catch {
+          // Fall through to default redirect
+        }
+      }
+      return NextResponse.redirect(`${origin}${isInvite ? '/reset-password' : next}`)
     }
   }
 
