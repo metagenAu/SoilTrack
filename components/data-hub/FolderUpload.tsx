@@ -95,8 +95,16 @@ export default function FolderUpload() {
   const [dragOver, setDragOver] = useState(false)
 
   const handleFiles = useCallback((fileArr: File[]) => {
-    setFiles(fileArr)
-    setResults(fileArr.map(f => ({
+    // Sort so trial summary comes first (needed for processing order)
+    const sorted = [...fileArr].sort((a, b) => {
+      const aType = classifyFile(a.name)
+      const bType = classifyFile(b.name)
+      if (aType === 'trialSummary') return -1
+      if (bType === 'trialSummary') return 1
+      return 0
+    })
+    setFiles(sorted)
+    setResults(sorted.map(f => ({
       filename: f.name,
       type: TYPE_LABELS[classifyFile(f.name)],
       status: 'pending' as const,
@@ -106,49 +114,102 @@ export default function FolderUpload() {
   async function handleUpload() {
     if (files.length === 0) return
     setUploading(true)
-    setResults(prev => prev.map(r => ({ ...r, status: 'processing' as const })))
+    setResults(prev => prev.map(r => ({ ...r, status: 'pending' as const })))
 
-    const formData = new FormData()
-    for (const f of files) {
-      formData.append('files', f)
-    }
+    let currentTrialId: string | null = null
 
-    try {
-      const res = await fetch('/api/upload/folder', {
-        method: 'POST',
-        body: formData,
-      })
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const classification = classifyFile(file.name)
 
-      if (!res.ok) {
-        const text = await res.text()
-        let detail = `Server error (${res.status})`
-        try {
-          const errJson = JSON.parse(text)
-          if (errJson.error) detail = errJson.error
-        } catch {
-          // non-JSON response body
+      // Mark current file as processing
+      setResults(prev => prev.map((r, idx) =>
+        idx === i ? { ...r, status: 'processing' as const } : r
+      ))
+
+      try {
+        if (classification === 'trialSummary') {
+          // Upload trial summary via folder route to create/upsert the trial
+          const formData = new FormData()
+          formData.append('files', file)
+
+          const res = await fetch('/api/upload/folder', {
+            method: 'POST',
+            body: formData,
+          })
+
+          if (!res.ok) throw new Error(`Server error (${res.status})`)
+
+          const data = await res.json()
+          if (data.trialId) currentTrialId = data.trialId
+
+          const result = data.results?.[0]
+          setResults(prev => prev.map((r, idx) =>
+            idx === i ? {
+              ...r,
+              status: result?.status || 'success',
+              detail: result?.detail,
+              records: result?.records,
+            } : r
+          ))
+
+        } else if (classification === 'photo' || classification === 'unknown') {
+          setResults(prev => prev.map((r, idx) =>
+            idx === i ? {
+              ...r,
+              status: 'success' as const,
+              detail: classification === 'photo'
+                ? 'Skipped (photo storage not yet configured)'
+                : 'Skipped — not a recognised data file',
+            } : r
+          ))
+
+        } else {
+          if (!currentTrialId) {
+            setResults(prev => prev.map((r, idx) =>
+              idx === i ? {
+                ...r,
+                status: 'error' as const,
+                detail: 'No trial context — include a Trial Summary file',
+              } : r
+            ))
+            continue
+          }
+
+          const formData = new FormData()
+          formData.append('file', file)
+          formData.append('trialId', currentTrialId)
+          formData.append('fileType', 'auto')
+
+          const res = await fetch('/api/upload/single', {
+            method: 'POST',
+            body: formData,
+          })
+
+          if (!res.ok) throw new Error(`Server error (${res.status})`)
+
+          const data = await res.json()
+          setResults(prev => prev.map((r, idx) =>
+            idx === i ? {
+              ...r,
+              status: data.status || 'success',
+              detail: data.detail,
+              records: data.records,
+            } : r
+          ))
         }
-        setResults(files.map(f => ({
-          filename: f.name,
-          type: TYPE_LABELS[classifyFile(f.name)],
-          status: 'error' as const,
-          detail,
-        })))
-        setUploading(false)
-        return
+      } catch (err: any) {
+        setResults(prev => prev.map((r, idx) =>
+          idx === i ? {
+            ...r,
+            status: 'error' as const,
+            detail: err?.message || 'Upload failed',
+          } : r
+        ))
       }
-
-      const data = await res.json()
-      setResults(data.results || [])
-      if (data.trialId) setTrialId(data.trialId)
-    } catch (err: any) {
-      setResults(files.map(f => ({
-        filename: f.name,
-        type: TYPE_LABELS[classifyFile(f.name)],
-        status: 'error' as const,
-        detail: err?.message || 'Upload failed — check your connection',
-      })))
     }
+
+    if (currentTrialId) setTrialId(currentTrialId)
     setUploading(false)
   }
 
