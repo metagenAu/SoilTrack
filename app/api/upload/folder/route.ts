@@ -263,11 +263,11 @@ export async function POST(request: NextRequest) {
       } else if (classification === 'photo') {
         const targetTrialId = trialId
         if (!targetTrialId) {
-          results.push({ filename: file.name, type: 'Photo', status: 'error', detail: 'No trial context — upload a Trial Summary first' })
+          results.push({ filename, type: 'Photo', status: 'error', detail: 'No trial context — upload a Trial Summary first' })
           continue
         }
 
-        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+        const ext = filename.split('.').pop()?.toLowerCase() || 'jpg'
         const storagePath = `${targetTrialId}/${crypto.randomUUID()}.${ext}`
 
         const buffer = await file.arrayBuffer()
@@ -282,7 +282,7 @@ export async function POST(request: NextRequest) {
 
         const { error: dbError } = await supabase.from('trial_photos').insert({
           trial_id: targetTrialId,
-          filename: file.name,
+          filename,
           storage_path: storagePath,
         })
 
@@ -292,12 +292,14 @@ export async function POST(request: NextRequest) {
           trial_id: targetTrialId, file_type: 'photo', has_data: true, last_updated: new Date().toISOString(),
         })
 
-        await supabase.from('upload_log').insert({
-          trial_id: targetTrialId, filename: file.name, file_type: 'photo',
-          status: 'success', records_imported: 1,
-        })
+        try {
+          await supabase.from('upload_log').insert({
+            trial_id: targetTrialId, filename, file_type: 'photo',
+            status: 'success', records_imported: 1,
+          })
+        } catch { /* logging is best-effort */ }
 
-        results.push({ filename: file.name, type: 'Photo', status: 'success', detail: 'Photo uploaded', records: 1 })
+        results.push({ filename, type: 'Photo', status: 'success', detail: 'Photo uploaded', records: 1 })
 
       } else {
         // Skip unrecognized files silently (e.g. READMEs, system files)
