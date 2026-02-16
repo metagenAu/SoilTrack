@@ -231,7 +231,7 @@ export default function FolderUpload() {
       }
     }
 
-    // --- Step 2: Upload remaining data files (CSVs / XLSX) with trialId ---
+    // --- Step 2: Upload each data file individually with trialId ---
     if (dataFileIndices.length > 0) {
       if (!returnedTrialId) {
         // No trial context from Step 1 — mark all data files as error
@@ -241,88 +241,60 @@ export default function FolderUpload() {
             : r
         ))
       } else {
-        const formData = new FormData()
-        for (const i of dataFileIndices) formData.append('files', files[i])
-        formData.append('trialId', returnedTrialId)
+        for (const i of dataFileIndices) {
+          setResults(prev => prev.map((r, idx) =>
+            idx === i ? { ...r, status: 'processing' as const } : r
+          ))
 
-        setResults(prev => prev.map((r, idx) =>
-          dataFileIndices.includes(idx) ? { ...r, status: 'processing' as const } : r
-        ))
+          try {
+            const dataForm = new FormData()
+            dataForm.append('files', files[i])
+            dataForm.append('trialId', returnedTrialId)
 
-        try {
-          const controller = new AbortController()
-          const timeout = setTimeout(() => controller.abort(), 120_000)
+            const controller = new AbortController()
+            const timeout = setTimeout(() => controller.abort(), 120_000)
 
-          const res = await fetch('/api/upload/folder', {
-            method: 'POST',
-            body: formData,
-            signal: controller.signal,
-          })
-
-          clearTimeout(timeout)
-
-          if (!res.ok) {
-            let detail = `Server error (${res.status})`
-            try {
-              const body = await res.json()
-              if (body?.error) detail = body.error
-            } catch { /* body wasn't JSON */ }
-            throw new Error(detail)
-          }
-
-          const data = await res.json()
-
-          const serverResults: FileResult[] = data.results || []
-          const resultsByName = new Map<string, FileResult>()
-          for (const r of serverResults) resultsByName.set(r.filename, r)
-
-          setResults(prev => {
-            const updated = prev.map((r, idx) => {
-              if (!dataFileIndices.includes(idx)) return r
-
-              const serverResult = resultsByName.get(r.filename)
-              if (serverResult) {
-                return {
-                  ...r,
-                  status: serverResult.status as FileResult['status'],
-                  detail: serverResult.detail,
-                  records: serverResult.records,
-                  rawUploadId: serverResult.rawUploadId,
-                  unmappedColumns: serverResult.unmappedColumns,
-                }
-              }
-
-              const dataIdx = dataFileIndices.indexOf(idx)
-              if (dataIdx >= 0 && dataIdx < serverResults.length) {
-                const sr = serverResults[dataIdx]
-                return {
-                  ...r,
-                  status: sr.status as FileResult['status'],
-                  detail: sr.detail,
-                  records: sr.records,
-                  rawUploadId: sr.rawUploadId,
-                  unmappedColumns: sr.unmappedColumns,
-                }
-              }
-
-              return r
+            const res = await fetch('/api/upload/folder', {
+              method: 'POST',
+              body: dataForm,
+              signal: controller.signal,
             })
 
-            // Safety sweep: force any files still stuck in 'processing' to error
-            return updated.map(r =>
-              r.status === 'processing'
-                ? { ...r, status: 'error' as const, detail: 'No response received from server' }
-                : r
-            )
-          })
-        } catch (err: any) {
-          const detail = err?.name === 'AbortError'
-            ? 'Upload timed out — the server took too long to respond'
-            : (err?.message || 'Upload failed')
+            clearTimeout(timeout)
 
-          setResults(prev => prev.map((r, idx) =>
-            dataFileIndices.includes(idx) ? { ...r, status: 'error' as const, detail } : r
-          ))
+            if (!res.ok) {
+              let detail = `Server error (${res.status})`
+              try {
+                const body = await res.json()
+                if (body?.error) detail = body.error
+              } catch { /* body wasn't JSON */ }
+              throw new Error(detail)
+            }
+
+            const data = await res.json()
+            const sr = (data.results || [])[0]
+
+            setResults(prev => prev.map((r, idx) =>
+              idx === i
+                ? {
+                    ...r,
+                    status: (sr?.status || 'error') as FileResult['status'],
+                    detail: sr?.detail,
+                    records: sr?.records,
+                    rawUploadId: sr?.rawUploadId,
+                    unmappedColumns: sr?.unmappedColumns,
+                  }
+                : r
+            ))
+          } catch (err: any) {
+            const detail = err?.name === 'AbortError'
+              ? 'Upload timed out — the server took too long to respond'
+              : (err?.message || 'Upload failed')
+
+            setResults(prev => prev.map((r, idx) =>
+              idx === i ? { ...r, status: 'error' as const, detail } : r
+            ))
+          }
         }
       }
     }
