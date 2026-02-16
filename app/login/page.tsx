@@ -7,38 +7,49 @@ import Button from '@/components/ui/Button'
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<'login' | 'signup' | 'magic'>('login')
+  const [mode, setMode] = useState<'login' | 'forgot'>('login')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [showResendConfirmation, setShowResendConfirmation] = useState(false)
 
   const supabase = createClient()
+
+  async function handleResendConfirmation() {
+    setLoading(true)
+    setError('')
+    setMessage('')
+    const redirectTo = `${window.location.origin}/auth/callback`
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: redirectTo },
+    })
+    if (error) {
+      setError(error.message)
+    } else {
+      setMessage('Confirmation email resent. Please check your inbox.')
+      setShowResendConfirmation(false)
+    }
+    setLoading(false)
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
     setMessage('')
+    setShowResendConfirmation(false)
 
-    if (mode === 'magic') {
-      const redirectTo = `${window.location.origin}/auth/callback`
-      const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } })
+    if (mode === 'forgot') {
+      const redirectTo = `${window.location.origin}/auth/callback?type=recovery`
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      })
       if (error) {
         setError(error.message)
       } else {
-        setMessage('Check your email for the magic link.')
-      }
-      setLoading(false)
-      return
-    }
-
-    if (mode === 'signup') {
-      const redirectTo = `${window.location.origin}/auth/callback`
-      const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } })
-      if (error) {
-        setError(error.message)
-      } else {
-        setMessage('Check your email to confirm your account.')
+        setMessage('Check your email for the password reset link.')
       }
       setLoading(false)
       return
@@ -46,7 +57,12 @@ export default function LoginPage() {
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      setError(error.message)
+      if (error.message.toLowerCase().includes('email not confirmed')) {
+        setError('Your email address has not been confirmed yet.')
+        setShowResendConfirmation(true)
+      } else {
+        setError(error.message)
+      }
     } else {
       window.location.href = '/'
     }
@@ -72,9 +88,7 @@ export default function LoginPage() {
         {/* Card */}
         <div className="bg-white rounded-xl p-6 shadow-lg">
           <h2 className="text-lg font-semibold text-brand-black mb-4 text-center">
-            {mode === 'login' && 'Sign in'}
-            {mode === 'signup' && 'Create account'}
-            {mode === 'magic' && 'Magic link'}
+            {mode === 'login' ? 'Sign in' : 'Reset password'}
           </h2>
 
           <form onSubmit={handleLogin} className="space-y-3">
@@ -90,7 +104,7 @@ export default function LoginPage() {
               />
             </div>
 
-            {mode !== 'magic' && (
+            {mode === 'login' && (
               <div>
                 <label className="signpost-label block mb-1">Password</label>
                 <input
@@ -107,38 +121,43 @@ export default function LoginPage() {
             {error && (
               <p className="text-red-500 text-xs">{error}</p>
             )}
+            {showResendConfirmation && (
+              <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={loading}
+                className="text-xs text-meta-blue hover:underline"
+              >
+                Resend confirmation email
+              </button>
+            )}
             {message && (
               <p className="text-green-lush text-xs">{message}</p>
             )}
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Loading...' : mode === 'login' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Send magic link'}
+              {loading
+                ? 'Loading...'
+                : mode === 'login'
+                  ? 'Sign in'
+                  : 'Send reset link'}
             </Button>
           </form>
 
-          <div className="mt-4 text-center space-y-1">
-            {mode !== 'login' && (
+          <div className="mt-4 text-center">
+            {mode === 'login' ? (
               <button
-                onClick={() => setMode('login')}
-                className="text-xs text-meta-blue hover:underline block mx-auto"
+                onClick={() => { setMode('forgot'); setError(''); setMessage(''); setShowResendConfirmation(false) }}
+                className="text-xs text-meta-blue hover:underline"
               >
-                Sign in with password
+                Forgot password?
               </button>
-            )}
-            {mode !== 'signup' && (
+            ) : (
               <button
-                onClick={() => setMode('signup')}
-                className="text-xs text-meta-blue hover:underline block mx-auto"
+                onClick={() => { setMode('login'); setError(''); setMessage(''); setShowResendConfirmation(false) }}
+                className="text-xs text-meta-blue hover:underline"
               >
-                Create account
-              </button>
-            )}
-            {mode !== 'magic' && (
-              <button
-                onClick={() => setMode('magic')}
-                className="text-xs text-meta-blue hover:underline block mx-auto"
-              >
-                Use magic link instead
+                Back to sign in
               </button>
             )}
           </div>
