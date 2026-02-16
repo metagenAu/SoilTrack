@@ -55,6 +55,16 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
 
       clearTimeout(timeout)
 
+      if (!res.ok) {
+        let detail = `Server error (${res.status})`
+        try {
+          const body = await res.json()
+          if (body?.detail) detail = body.detail
+          else if (body?.error) detail = body.error
+        } catch { /* body wasn't JSON */ }
+        throw new Error(detail)
+      }
+
       const data = await res.json()
       setResult(data)
     } catch (err: any) {

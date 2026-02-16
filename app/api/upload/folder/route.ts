@@ -29,13 +29,15 @@ interface FileResult {
 
 export async function POST(request: NextRequest) {
   let supabase: ReturnType<typeof createServerSupabaseClient>
+  let formData: FormData
   let files: File[]
 
   try {
     supabase = createServerSupabaseClient()
-    const formData = await request.formData()
+    formData = await request.formData()
     files = formData.getAll('files') as File[]
   } catch (err: any) {
+    console.error('Folder upload init error:', err)
     return NextResponse.json(
       { error: err?.message || 'Failed to read upload data', results: [] },
       { status: 400 }
@@ -47,7 +49,8 @@ export async function POST(request: NextRequest) {
   }
 
   const results: FileResult[] = []
-  let trialId: string | null = null
+  // Accept an optional trialId from the client (used when uploading photos separately)
+  let trialId: string | null = (formData.get('trialId') as string) || null
 
   // Sort files so trial summary comes first
   const sorted = [...files].sort((a, b) => {
@@ -202,7 +205,10 @@ export async function POST(request: NextRequest) {
       }
     } catch (err: any) {
       const filename = file.name || 'unnamed'
-      const classification = classifyFile(filename)
+      let classification: FileClassification = 'unknown'
+      try { classification = classifyFile(filename) } catch { /* defensive */ }
+
+      console.error(`Folder upload error for ${filename}:`, err)
 
       results.push({
         filename,
@@ -219,7 +225,7 @@ export async function POST(request: NextRequest) {
           status: 'error',
           detail: err?.message || 'Processing failed',
         })
-      } catch { /* logging is best-effort */ }
+      } catch (logErr) { console.error('upload_log insert failed:', logErr) }
     }
   }
 

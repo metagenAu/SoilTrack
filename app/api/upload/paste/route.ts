@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
     supabase = createServerSupabaseClient()
     body = await request.json()
   } catch (err: any) {
+    console.error('Paste upload init error:', err)
     return NextResponse.json({ status: 'error', detail: err?.message || 'Failed to read request data' }, { status: 400 })
   }
 
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result)
   } catch (err: any) {
+    console.error('Paste upload error:', err)
     try {
       await supabase.from('upload_log').insert({
         trial_id: trialId,
@@ -58,7 +60,7 @@ export async function POST(request: NextRequest) {
         status: 'error',
         detail: err?.message,
       })
-    } catch { /* logging is best-effort */ }
+    } catch (logErr) { console.error('upload_log insert failed:', logErr) }
     return NextResponse.json({ status: 'error', detail: err?.message || 'Import failed' })
   }
 }

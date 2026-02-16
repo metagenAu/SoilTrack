@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
     supabase = createServerSupabaseClient()
     formData = await request.formData()
   } catch (err: any) {
+    console.error('Single upload init error:', err)
     return NextResponse.json({ status: 'error', detail: err?.message || 'Failed to read upload data' }, { status: 400 })
   }
 
@@ -25,7 +26,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: 'error', detail: 'Missing file or trial ID' }, { status: 400 })
   }
 
-  const classification = fileType === 'auto' ? classifyFile(file.name || '') : fileType
+  const filename = file.name || 'unnamed'
+  const classification = fileType === 'auto' ? classifyFile(filename) : fileType
 
   try {
     // Trial summary still uses its own parser (not a data table)
@@ -63,13 +65,15 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      await supabase.from('upload_log').insert({
-        trial_id: trialId,
-        filename: file.name,
-        file_type: 'trialSummary',
-        status: 'success',
-        records_imported: parsed.treatments.length,
-      })
+      try {
+        await supabase.from('upload_log').insert({
+          trial_id: trialId,
+          filename: file.name,
+          file_type: 'trialSummary',
+          status: 'success',
+          records_imported: parsed.treatments.length,
+        })
+      } catch (logErr) { console.error('upload_log insert failed:', logErr) }
 
       return NextResponse.json({ status: 'success', detail: 'Trial updated', records: parsed.treatments.length })
     }
@@ -106,6 +110,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result)
   } catch (err: any) {
+    console.error(`Single upload error for ${file.name}:`, err)
     try {
       await supabase.from('upload_log').insert({
         trial_id: trialId,
@@ -114,7 +119,7 @@ export async function POST(request: NextRequest) {
         status: 'error',
         detail: err?.message,
       })
-    } catch { /* logging is best-effort */ }
+    } catch (logErr) { console.error('upload_log insert failed:', logErr) }
     return NextResponse.json({ status: 'error', detail: err?.message || 'Processing failed' })
   }
 }
