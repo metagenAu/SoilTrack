@@ -6,6 +6,7 @@ import { parseSoilHealth } from '@/lib/parsers/parseSoilHealth'
 import { parseSoilChemistry } from '@/lib/parsers/parseSoilChemistry'
 import { parsePlotData } from '@/lib/parsers/parsePlotData'
 import { parseTissueChemistry } from '@/lib/parsers/parseTissueChemistry'
+import { parseSampleMetadata } from '@/lib/parsers/parseSampleMetadata'
 
 export const maxDuration = 60
 
@@ -208,6 +209,32 @@ export async function POST(request: NextRequest) {
         })
 
         results.push({ filename: file.name, type: 'Tissue Chemistry', status: 'success', records: rows.length })
+
+      } else if (classification === 'sampleMetadata') {
+        const text = await file.text()
+        const rows = parseSampleMetadata(text)
+        const targetTrialId = trialId
+
+        if (!targetTrialId) {
+          results.push({ filename: file.name, type: 'Sample Metadata', status: 'error', detail: 'No trial context' })
+          continue
+        }
+
+        const { error } = await supabase.from('sample_metadata').insert(
+          rows.map(r => ({ trial_id: targetTrialId, ...r }))
+        )
+        if (error) throw error
+
+        await supabase.from('trial_data_files').upsert({
+          trial_id: targetTrialId, file_type: 'sampleMetadata', has_data: true, last_updated: new Date().toISOString(),
+        })
+
+        await supabase.from('upload_log').insert({
+          trial_id: targetTrialId, filename: file.name, file_type: 'sampleMetadata',
+          status: 'success', records_imported: rows.length,
+        })
+
+        results.push({ filename: file.name, type: 'Sample Metadata', status: 'success', records: rows.length })
 
       } else if (classification === 'photo') {
         results.push({ filename: file.name, type: 'Photo', status: 'success', detail: 'Skipped (photo storage not yet configured)' })

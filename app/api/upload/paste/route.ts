@@ -3,12 +3,14 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { parseSoilHealth } from '@/lib/parsers/parseSoilHealth'
 import { parseSoilChemistry } from '@/lib/parsers/parseSoilChemistry'
 import { parsePlotData } from '@/lib/parsers/parsePlotData'
+import { parseSampleMetadata } from '@/lib/parsers/parseSampleMetadata'
 
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { trialId, dataType, csvText } = await request.json()
+  const body = await request.json()
+  const { trialId, dataType, csvText } = body
 
   if (!trialId || !dataType || !csvText) {
     return NextResponse.json({ status: 'error', detail: 'Missing required fields' }, { status: 400 })
@@ -33,6 +35,12 @@ export async function POST(request: NextRequest) {
       const rows = parsePlotData(csvText)
       await supabase.from('plot_data').insert(rows.map(r => ({ trial_id: trialId, ...r })))
       await supabase.from('trial_data_files').upsert({ trial_id: trialId, file_type: 'plotData', has_data: true })
+      records = rows.length
+
+    } else if (dataType === 'sampleMetadata') {
+      const rows = parseSampleMetadata(csvText, body.assayType || 'general')
+      await supabase.from('sample_metadata').insert(rows.map(r => ({ trial_id: trialId, ...r })))
+      await supabase.from('trial_data_files').upsert({ trial_id: trialId, file_type: 'sampleMetadata', has_data: true })
       records = rows.length
 
     } else {

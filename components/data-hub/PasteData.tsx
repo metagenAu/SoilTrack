@@ -10,6 +10,7 @@ const DATA_TYPES = [
   { value: 'soilChemistry', label: 'Soil Chemistry' },
   { value: 'plotData', label: 'Plot Data' },
   { value: 'tissueChemistry', label: 'Tissue Chemistry' },
+  { value: 'sampleMetadata', label: 'Sample Metadata' },
 ]
 
 interface PasteResult {

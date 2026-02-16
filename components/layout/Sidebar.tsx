@@ -9,6 +9,7 @@ import {
   FlaskConical,
   Users,
   FileText,
+  BarChart3,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -20,6 +21,7 @@ const navItems = [
   { label: 'Data Hub', href: '/data-hub', icon: Database },
   { label: 'Trials', href: '/trials', icon: FlaskConical },
   { label: 'Clients', href: '/clients', icon: Users },
+  { label: 'Analysis', href: '/analysis', icon: BarChart3 },
   { label: 'Reports', href: '/reports', icon: FileText },
   { label: 'Settings', href: '/settings', icon: Settings },
 ]
