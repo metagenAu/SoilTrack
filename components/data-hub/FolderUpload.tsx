@@ -124,15 +124,7 @@ export default function FolderUpload() {
       const file = files[i]
       const classification = classifyFile(file.name)
 
-      if (classification === 'photo') {
-        setResults(prev => prev.map((r, idx) =>
-          idx === i ? {
-            ...r,
-            status: 'success' as const,
-            detail: 'Skipped (photo storage not yet configured)',
-          } : r
-        ))
-      } else if (classification === 'unknown') {
+      if (classification === 'unknown') {
         setResults(prev => prev.map((r, idx) =>
           idx === i ? {
             ...r,
