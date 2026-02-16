@@ -4,6 +4,8 @@ import { parseSoilHealth } from '@/lib/parsers/parseSoilHealth'
 import { parseSoilChemistry } from '@/lib/parsers/parseSoilChemistry'
 import { parsePlotData } from '@/lib/parsers/parsePlotData'
 
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabaseClient()
   const { trialId, dataType, csvText } = await request.json()

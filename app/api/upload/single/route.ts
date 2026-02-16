@@ -7,6 +7,8 @@ import { parseSoilChemistry } from '@/lib/parsers/parseSoilChemistry'
 import { parsePlotData } from '@/lib/parsers/parsePlotData'
 import { parseTissueChemistry } from '@/lib/parsers/parseTissueChemistry'
 
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabaseClient()
   const formData = await request.formData()
