@@ -7,7 +7,7 @@ import Button from '@/components/ui/Button'
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<'login' | 'signup' | 'magic' | 'forgot'>('login')
+  const [mode, setMode] = useState<'login' | 'forgot'>('login')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -40,30 +40,6 @@ export default function LoginPage() {
     setError('')
     setMessage('')
     setShowResendConfirmation(false)
-
-    if (mode === 'magic') {
-      const redirectTo = `${window.location.origin}/auth/callback`
-      const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } })
-      if (error) {
-        setError(error.message)
-      } else {
-        setMessage('Check your email for the magic link.')
-      }
-      setLoading(false)
-      return
-    }
-
-    if (mode === 'signup') {
-      const redirectTo = `${window.location.origin}/auth/callback`
-      const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } })
-      if (error) {
-        setError(error.message)
-      } else {
-        setMessage('Check your email to confirm your account.')
-      }
-      setLoading(false)
-      return
-    }
 
     if (mode === 'forgot') {
       const redirectTo = `${window.location.origin}/auth/callback?type=recovery`
@@ -112,10 +88,7 @@ export default function LoginPage() {
         {/* Card */}
         <div className="bg-white rounded-xl p-6 shadow-lg">
           <h2 className="text-lg font-semibold text-brand-black mb-4 text-center">
-            {mode === 'login' && 'Sign in'}
-            {mode === 'signup' && 'Create account'}
-            {mode === 'magic' && 'Magic link'}
-            {mode === 'forgot' && 'Reset password'}
+            {mode === 'login' ? 'Sign in' : 'Reset password'}
           </h2>
 
           <form onSubmit={handleLogin} className="space-y-3">
@@ -131,7 +104,7 @@ export default function LoginPage() {
               />
             </div>
 
-            {(mode === 'login' || mode === 'signup') && (
+            {mode === 'login' && (
               <div>
                 <label className="signpost-label block mb-1">Password</label>
                 <input
@@ -167,45 +140,24 @@ export default function LoginPage() {
                 ? 'Loading...'
                 : mode === 'login'
                   ? 'Sign in'
-                  : mode === 'signup'
-                    ? 'Create account'
-                    : mode === 'forgot'
-                      ? 'Send reset link'
-                      : 'Send magic link'}
+                  : 'Send reset link'}
             </Button>
           </form>
 
-          <div className="mt-4 text-center space-y-1">
-            {mode !== 'login' && (
-              <button
-                onClick={() => { setMode('login'); setError(''); setMessage(''); setShowResendConfirmation(false) }}
-                className="text-xs text-meta-blue hover:underline block mx-auto"
-              >
-                Sign in with password
-              </button>
-            )}
-            {mode === 'login' && (
+          <div className="mt-4 text-center">
+            {mode === 'login' ? (
               <button
                 onClick={() => { setMode('forgot'); setError(''); setMessage(''); setShowResendConfirmation(false) }}
-                className="text-xs text-meta-blue hover:underline block mx-auto"
+                className="text-xs text-meta-blue hover:underline"
               >
                 Forgot password?
               </button>
-            )}
-            {mode !== 'signup' && (
+            ) : (
               <button
-                onClick={() => { setMode('signup'); setError(''); setMessage(''); setShowResendConfirmation(false) }}
-                className="text-xs text-meta-blue hover:underline block mx-auto"
+                onClick={() => { setMode('login'); setError(''); setMessage(''); setShowResendConfirmation(false) }}
+                className="text-xs text-meta-blue hover:underline"
               >
-                Create account
-              </button>
-            )}
-            {mode !== 'magic' && (
-              <button
-                onClick={() => { setMode('magic'); setError(''); setMessage(''); setShowResendConfirmation(false) }}
-                className="text-xs text-meta-blue hover:underline block mx-auto"
-              >
-                Use magic link instead
+                Back to sign in
               </button>
             )}
           </div>
