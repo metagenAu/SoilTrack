@@ -281,7 +281,7 @@ export default function FolderUpload() {
             setResults(prev => prev.map((r, idx) =>
               idx === photoIdx ? {
                 ...r,
-                status: (photoResult?.status || 'success') as 'success' | 'error',
+                status: (photoResult?.status || 'error') as 'success' | 'error',
                 detail: photoResult?.detail || 'Photo uploaded',
                 records: photoResult?.records,
               } : r
