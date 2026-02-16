@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Button from '@/components/ui/Button'
 
@@ -14,6 +14,47 @@ export default function LoginPage() {
   const [showResendConfirmation, setShowResendConfirmation] = useState(false)
 
   const supabase = createClient()
+
+  // Safety net: handle auth callback params that land on the login page.
+  // The middleware should catch these, but this handles edge cases like
+  // hash fragments (invisible to the server) or cached redirects.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+
+    // Show error messages forwarded from auth callback routes
+    const urlError = params.get('error')
+    if (urlError) {
+      setError(urlError)
+    }
+
+    // Handle PKCE code param — redirect to the server callback route
+    const code = params.get('code')
+    if (code) {
+      window.location.href = `/auth/callback${window.location.search}`
+      return
+    }
+
+    // Handle hash fragment tokens (implicit flow / Supabase magic link fallback)
+    const hash = window.location.hash
+    if (hash && hash.includes('access_token')) {
+      // Supabase's createBrowserClient auto-detects hash fragments and
+      // establishes a session. Listen for the resulting auth state change.
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          try {
+            const payload = JSON.parse(atob(session.access_token.split('.')[1]))
+            const isInvite = (payload.amr || []).some(
+              (entry: { method: string }) => entry.method === 'invite'
+            )
+            window.location.href = isInvite ? '/reset-password' : '/'
+          } catch {
+            window.location.href = '/'
+          }
+        }
+      })
+      return () => subscription.unsubscribe()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleResendConfirmation() {
     setLoading(true)
