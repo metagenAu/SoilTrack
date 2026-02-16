@@ -59,13 +59,16 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
     setUploading(false)
   }
 
-  function handleReviewComplete(reviewResult: { status: string; records?: number; detail?: string }) {
+  function handleReviewComplete(batchResults: { rawUploadId: string; status: string; records?: number; detail?: string }[]) {
     setReviewOpen(false)
-    setResult({
-      status: reviewResult.status as 'success' | 'error',
-      detail: reviewResult.detail || '',
-      records: reviewResult.records,
-    })
+    const first = batchResults[0]
+    if (first) {
+      setResult({
+        status: first.status as 'success' | 'error',
+        detail: first.detail || '',
+        records: first.records,
+      })
+    }
   }
 
   return (
@@ -177,9 +180,12 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
         <ColumnReview
           open={reviewOpen}
           onClose={() => setReviewOpen(false)}
-          rawUploadId={result.rawUploadId}
-          fileType={fileType === 'auto' ? 'plotData' : fileType}
-          unmappedColumns={result.unmappedColumns}
+          items={[{
+            rawUploadId: result.rawUploadId,
+            filename: file?.name || 'unknown',
+            fileType: fileType === 'auto' ? 'plotData' : fileType,
+            unmappedColumns: result.unmappedColumns,
+          }]}
           onComplete={handleReviewComplete}
         />
       )}

@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { FolderUp, FileText, CheckCircle, XCircle, Loader2, Clock, AlertTriangle } from 'lucide-react'
 import Button from '@/components/ui/Button'
-import ColumnReview from './ColumnReview'
+import ColumnReview, { type ReviewItem } from './ColumnReview'
 import { cn } from '@/lib/utils'
 import { classifyFile, type FileClassification } from '@/lib/parsers/classify'
 
@@ -96,7 +96,7 @@ export default function FolderUpload() {
   const [uploading, setUploading] = useState(false)
   const [trialId, setTrialId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
-  const [reviewTarget, setReviewTarget] = useState<FileResult | null>(null)
+  const [reviewOpen, setReviewOpen] = useState(false)
 
   const handleFiles = useCallback((fileArr: File[]) => {
     // Sort so trial summary comes first (needed for processing order)
@@ -201,15 +201,33 @@ export default function FolderUpload() {
     setUploading(false)
   }
 
-  function handleReviewComplete(reviewResult: { status: string; records?: number; detail?: string }) {
-    if (reviewTarget) {
-      setResults(prev => prev.map(r =>
-        r.filename === reviewTarget.filename
-          ? { ...r, status: reviewResult.status as FileResult['status'], detail: reviewResult.detail, records: reviewResult.records }
-          : r
-      ))
-    }
-    setReviewTarget(null)
+  /** Collect all needs_review results into ReviewItem[] for the batch modal */
+  function getReviewItems(): ReviewItem[] {
+    return results
+      .filter(r => r.status === 'needs_review' && r.rawUploadId && r.unmappedColumns)
+      .map(r => ({
+        rawUploadId: r.rawUploadId!,
+        filename: r.filename,
+        fileType: r.type === 'Plot Data' ? 'plotData' :
+                  r.type === 'Soil Health' ? 'soilHealth' :
+                  r.type === 'Soil Chemistry' ? 'soilChemistry' :
+                  r.type === 'Tissue Chemistry' ? 'tissueChemistry' :
+                  r.type === 'Assay Results' ? 'sampleMetadata' :
+                  r.type,
+        unmappedColumns: r.unmappedColumns!,
+      }))
+  }
+
+  function handleReviewComplete(batchResults: { rawUploadId: string; status: string; records?: number; detail?: string }[]) {
+    const resultMap = new Map(batchResults.map(r => [r.rawUploadId, r]))
+    setResults(prev => prev.map(r => {
+      if (r.rawUploadId && resultMap.has(r.rawUploadId)) {
+        const br = resultMap.get(r.rawUploadId)!
+        return { ...r, status: br.status as FileResult['status'], detail: br.detail, records: br.records }
+      }
+      return r
+    }))
+    setReviewOpen(false)
   }
 
   return (
@@ -291,7 +309,7 @@ export default function FolderUpload() {
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => setReviewTarget(r)}
+                    onClick={() => setReviewOpen(true)}
                   >
                     Review
                   </Button>
@@ -299,6 +317,19 @@ export default function FolderUpload() {
               </div>
             ))}
           </div>
+
+          {/* Batch review banner */}
+          {results.filter(r => r.status === 'needs_review').length > 0 && (
+            <div className="mt-3 flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
+              <AlertTriangle size={16} className="text-amber-600 flex-shrink-0" />
+              <p className="text-sm text-amber-800 flex-1">
+                {results.filter(r => r.status === 'needs_review').length} file{results.filter(r => r.status === 'needs_review').length > 1 ? 's' : ''} need column mapping review
+              </p>
+              <Button size="sm" onClick={() => setReviewOpen(true)}>
+                Review All
+              </Button>
+            </div>
+          )}
 
           {trialId && (
             <div className="mt-4 p-3 rounded-lg bg-green-lush/10 border border-green-lush/20">
@@ -313,19 +344,12 @@ export default function FolderUpload() {
         </div>
       )}
 
-      {/* Column review modal */}
-      {reviewTarget?.rawUploadId && reviewTarget?.unmappedColumns && (
+      {/* Column review modal — batch mode for all needs_review files */}
+      {reviewOpen && getReviewItems().length > 0 && (
         <ColumnReview
-          open={!!reviewTarget}
-          onClose={() => setReviewTarget(null)}
-          rawUploadId={reviewTarget.rawUploadId}
-          fileType={reviewTarget.type === 'Plot Data' ? 'plotData' :
-                    reviewTarget.type === 'Soil Health' ? 'soilHealth' :
-                    reviewTarget.type === 'Soil Chemistry' ? 'soilChemistry' :
-                    reviewTarget.type === 'Tissue Chemistry' ? 'tissueChemistry' :
-                    reviewTarget.type === 'Assay Results' ? 'sampleMetadata' :
-                    reviewTarget.type}
-          unmappedColumns={reviewTarget.unmappedColumns}
+          open={reviewOpen}
+          onClose={() => setReviewOpen(false)}
+          items={getReviewItems()}
           onComplete={handleReviewComplete}
         />
       )}
