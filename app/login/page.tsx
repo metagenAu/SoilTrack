@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Button from '@/components/ui/Button'
 
@@ -13,7 +13,12 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [showResendConfirmation, setShowResendConfirmation] = useState(false)
 
-  const supabase = createClient()
+  // Lazy-init: avoids calling createClient() during build-time prerender
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null)
+  function getSupabase() {
+    if (!supabaseRef.current) supabaseRef.current = createClient()
+    return supabaseRef.current
+  }
 
   // Safety net: handle auth callback params that land on the login page.
   // The middleware should catch these, but this handles edge cases like
@@ -39,7 +44,7 @@ export default function LoginPage() {
     if (hash && hash.includes('access_token')) {
       // Supabase's createBrowserClient auto-detects hash fragments and
       // establishes a session. Listen for the resulting auth state change.
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const { data: { subscription } } = getSupabase().auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && session) {
           try {
             const payload = JSON.parse(atob(session.access_token.split('.')[1]))
@@ -61,7 +66,7 @@ export default function LoginPage() {
     setError('')
     setMessage('')
     const redirectTo = `${window.location.origin}/auth/callback`
-    const { error } = await supabase.auth.resend({
+    const { error } = await getSupabase().auth.resend({
       type: 'signup',
       email,
       options: { emailRedirectTo: redirectTo },
@@ -84,7 +89,7 @@ export default function LoginPage() {
 
     if (mode === 'forgot') {
       const redirectTo = `${window.location.origin}/auth/callback?type=recovery`
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await getSupabase().auth.resetPasswordForEmail(email, {
         redirectTo,
       })
       if (error) {
@@ -96,7 +101,7 @@ export default function LoginPage() {
       return
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error } = await getSupabase().auth.signInWithPassword({ email, password })
     if (error) {
       if (error.message.toLowerCase().includes('email not confirmed')) {
         setError('Your email address has not been confirmed yet.')
