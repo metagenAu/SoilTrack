@@ -47,7 +47,7 @@ export default async function LandingPage() {
           height: 100vh;
           display: flex;
           flex-direction: column;
-          font-family: 'DM Sans', system-ui, sans-serif;
+          font-family: 'Inter', system-ui, sans-serif;
           background: #161F28;
           color: #fff;
           overflow: hidden;
@@ -150,20 +150,21 @@ export default async function LandingPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          font-weight: 800;
+          font-weight: 700;
           font-size: 15px;
           color: #fff;
           box-shadow: 0 0 20px rgba(0,139,206,0.3);
         }
-        .landing-wm { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.1; }
-        .landing-wm span { font-weight: 400; }
+        .landing-wm { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; line-height: 1.1; }
+        .landing-wm span { font-weight: 300; }
         .landing-wm sup { font-size: 7px; letter-spacing: 1px; vertical-align: super; opacity: 0.35; margin-left: 1px; }
 
         .landing-topbar a {
           color: rgba(255,255,255,0.4);
           text-decoration: none;
           font-size: 13px;
-          font-weight: 500;
+          font-weight: 400;
+          letter-spacing: 0.01em;
           transition: color 0.25s;
         }
         .landing-topbar a:hover { color: rgba(255,255,255,0.8); }
@@ -194,7 +195,7 @@ export default async function LandingPage() {
         }
         .landing-sp-bold {
           font-size: 11px;
-          font-weight: 700;
+          font-weight: 600;
           letter-spacing: 2.5px;
           text-transform: uppercase;
           color: #99F0FA;
@@ -202,7 +203,7 @@ export default async function LandingPage() {
         }
         .landing-sp-reg {
           font-size: 11px;
-          font-weight: 400;
+          font-weight: 300;
           letter-spacing: 2.5px;
           text-transform: uppercase;
           color: rgba(255,255,255,0.18);
@@ -211,10 +212,10 @@ export default async function LandingPage() {
         /* ═══ HEADLINE ═══ */
         .landing-h1 {
           font-size: clamp(34px, 5vw, 66px);
-          font-weight: 500;
-          line-height: 1.18;
-          letter-spacing: -1px;
-          color: rgba(255,255,255,0.7);
+          font-weight: 300;
+          line-height: 1.15;
+          letter-spacing: -1.5px;
+          color: rgba(255,255,255,0.6);
           margin-bottom: 28px;
           opacity: 0;
           animation: landing-fadeUp 1s ease forwards 0.35s;
@@ -225,20 +226,21 @@ export default async function LandingPage() {
           padding-left: clamp(30px, 4vw, 70px);
         }
         .landing-h1 strong {
-          font-weight: 800;
+          font-weight: 700;
           color: #fff;
         }
         .landing-h1 .dot {
           color: #00BB7E;
-          font-weight: 800;
+          font-weight: 700;
         }
 
         /* ═══ LEAD ═══ */
         .landing-lead {
           font-size: clamp(13px, 1.3vw, 16px);
-          font-weight: 500;
+          font-weight: 400;
           color: rgba(255,255,255,0.25);
           line-height: 1.7;
+          letter-spacing: -0.01em;
           margin-bottom: 40px;
           opacity: 0;
           animation: landing-fadeUp 0.8s ease forwards 0.55s;
@@ -257,8 +259,9 @@ export default async function LandingPage() {
           border-radius: 50px;
           color: #fff;
           font-family: inherit;
-          font-size: 14px;
-          font-weight: 700;
+          font-size: 13px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
           cursor: pointer;
           transition: all 0.3s;
           box-shadow: 0 4px 20px rgba(0,139,206,0.25), 0 0 40px rgba(0,139,206,0.1);
@@ -311,7 +314,7 @@ export default async function LandingPage() {
           transform: translateY(-2px);
         }
         .landing-st-v {
-          font-family: 'DM Mono', monospace;
+          font-family: 'JetBrains Mono', monospace;
           font-size: 20px;
           font-weight: 500;
           color: rgba(255,255,255,0.6);
@@ -323,7 +326,7 @@ export default async function LandingPage() {
         }
         .landing-st-l {
           font-size: 9px;
-          font-weight: 700;
+          font-weight: 500;
           letter-spacing: 1.8px;
           text-transform: uppercase;
           color: rgba(255,255,255,0.15);
@@ -333,7 +336,7 @@ export default async function LandingPage() {
         /* ═══ GHOST DATA ═══ */
         .landing-gh {
           position: absolute;
-          font-family: 'DM Mono', monospace;
+          font-family: 'JetBrains Mono', monospace;
           font-size: 10px;
           color: rgba(153,240,250,0.04);
           letter-spacing: 1.5px;
