@@ -21,10 +21,11 @@ interface FileResult {
 export async function POST(request: NextRequest) {
   let supabase: ReturnType<typeof createServerSupabaseClient>
   let files: File[]
+  let formData: FormData
 
   try {
     supabase = createServerSupabaseClient()
-    const formData = await request.formData()
+    formData = await request.formData()
     files = formData.getAll('files') as File[]
   } catch (err: any) {
     console.error('[upload/folder] Init error:', err)
@@ -39,7 +40,9 @@ export async function POST(request: NextRequest) {
   }
 
   const results: FileResult[] = []
-  let trialId: string | null = null
+  // Accept an optional trialId from the form so photos can be uploaded
+  // in a separate request after the data files establish the trial context.
+  let trialId: string | null = (formData.get('trialId') as string) || null
 
   // Sort files so trial summary comes first
   const sorted = [...files].sort((a, b) => {

@@ -117,9 +117,10 @@ export default function FolderUpload() {
     setTrialId(null)
     setResults(prev => prev.map(r => ({ ...r, status: 'pending' as const, detail: undefined, records: undefined })))
 
-    // Handle photos/unknown client-side, batch data files for server
+    // Classify files into three groups: unknown (skip), data files, photos
     const dataFileIndices: number[] = []
-    const formData = new FormData()
+    const photoIndices: number[] = []
+    const dataFormData = new FormData()
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
@@ -133,33 +134,35 @@ export default function FolderUpload() {
             detail: 'Skipped — not a recognised data file',
           } : r
         ))
+      } else if (classification === 'photo') {
+        photoIndices.push(i)
       } else {
         dataFileIndices.push(i)
-        formData.append('files', file)
+        dataFormData.append('files', file)
       }
     }
 
-    // Upload all data files in one request so the server handles trial context
+    let resolvedTrialId: string | null = null
+
+    // Step 1: Upload data files (CSVs, XLSX) in one batch — small payload
     if (dataFileIndices.length > 0) {
       setResults(prev => prev.map((r, idx) =>
         dataFileIndices.includes(idx) ? { ...r, status: 'processing' as const } : r
       ))
 
       try {
-        // Abort if the server doesn't respond within 2 minutes
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 120_000)
 
         const res = await fetch('/api/upload/folder', {
           method: 'POST',
-          body: formData,
+          body: dataFormData,
           signal: controller.signal,
         })
 
         clearTimeout(timeout)
 
         if (!res.ok) {
-          // Try to extract error detail from JSON body
           let detail = `Server error (${res.status})`
           try {
             const body = await res.json()
@@ -169,9 +172,12 @@ export default function FolderUpload() {
         }
 
         const data = await res.json()
-        if (data.trialId) setTrialId(data.trialId)
+        if (data.trialId) {
+          resolvedTrialId = data.trialId
+          setTrialId(data.trialId)
+        }
 
-        // Map server results back to UI — try by filename first, fall back to order
+        // Map server results back to UI
         const serverResults: FileResult[] = data.results || []
         const resultsByName = new Map<string, FileResult>()
         for (const r of serverResults) {
@@ -180,10 +186,8 @@ export default function FolderUpload() {
 
         setResults(prev => {
           const updated = prev.map((r, idx) => {
-            // Only update data-file entries (photos/unknowns are already handled)
             if (!dataFileIndices.includes(idx)) return r
 
-            // Try matching by filename
             const serverResult = resultsByName.get(r.filename)
             if (serverResult) {
               return {
@@ -194,7 +198,6 @@ export default function FolderUpload() {
               }
             }
 
-            // Fallback: match by position in the data file list
             const dataIdx = dataFileIndices.indexOf(idx)
             if (dataIdx >= 0 && dataIdx < serverResults.length) {
               const sr = serverResults[dataIdx]
@@ -209,7 +212,6 @@ export default function FolderUpload() {
             return r
           })
 
-          // Safety sweep: any files still stuck on 'processing' should show an error
           return updated.map(r =>
             r.status === 'processing'
               ? { ...r, status: 'error' as const, detail: 'No response received from server' }
@@ -228,6 +230,76 @@ export default function FolderUpload() {
             detail,
           } : r
         ))
+      }
+    }
+
+    // Step 2: Upload photos one at a time (each can be several MB)
+    if (photoIndices.length > 0) {
+      if (!resolvedTrialId) {
+        // No trial context — mark all photos as error
+        setResults(prev => prev.map((r, idx) =>
+          photoIndices.includes(idx) ? {
+            ...r,
+            status: 'error' as const,
+            detail: 'No trial context — upload a Trial Summary first',
+          } : r
+        ))
+      } else {
+        for (const photoIdx of photoIndices) {
+          setResults(prev => prev.map((r, idx) =>
+            idx === photoIdx ? { ...r, status: 'processing' as const } : r
+          ))
+
+          try {
+            const photoForm = new FormData()
+            photoForm.append('files', files[photoIdx])
+            photoForm.append('trialId', resolvedTrialId)
+
+            const controller = new AbortController()
+            const timeout = setTimeout(() => controller.abort(), 120_000)
+
+            const res = await fetch('/api/upload/folder', {
+              method: 'POST',
+              body: photoForm,
+              signal: controller.signal,
+            })
+
+            clearTimeout(timeout)
+
+            if (!res.ok) {
+              let detail = `Server error (${res.status})`
+              try {
+                const body = await res.json()
+                if (body?.error) detail = body.error
+              } catch { /* body wasn't JSON */ }
+              throw new Error(detail)
+            }
+
+            const data = await res.json()
+            const photoResult = data.results?.[0]
+
+            setResults(prev => prev.map((r, idx) =>
+              idx === photoIdx ? {
+                ...r,
+                status: (photoResult?.status || 'success') as 'success' | 'error',
+                detail: photoResult?.detail || 'Photo uploaded',
+                records: photoResult?.records,
+              } : r
+            ))
+          } catch (err: any) {
+            const detail = err?.name === 'AbortError'
+              ? 'Upload timed out'
+              : (err?.message || 'Photo upload failed')
+
+            setResults(prev => prev.map((r, idx) =>
+              idx === photoIdx ? {
+                ...r,
+                status: 'error' as const,
+                detail,
+              } : r
+            ))
+          }
+        }
       }
     }
 
