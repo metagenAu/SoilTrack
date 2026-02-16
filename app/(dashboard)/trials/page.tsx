@@ -11,7 +11,7 @@ async function getTrials() {
 
   const [trialsRes, samplesRes, treatmentsRes] = await Promise.all([
     supabase.from('trials').select('*').order('created_at', { ascending: false }),
-    supabase.from('soil_health_samples').select('id, trial_id'),
+    supabase.from('soil_health_samples').select('trial_id'),
     supabase.from('treatments').select('trial_id, product'),
   ])
 

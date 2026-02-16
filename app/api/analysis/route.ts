@@ -59,7 +59,7 @@ function computeStats(values: number[]): Omit<GroupStats, 'label' | 'values'> {
  * GET /api/analysis
  * Query params:
  *   - source: 'sampleMetadata' | 'soilChemistry' | 'tissueChemistry' | 'plotData'
- *   - trialId: single trial ID (optional; if omitted, aggregates across all trials)
+ *   - trialId: single trial ID (required if trialIds not provided)
  *   - trialIds: comma-separated trial IDs for cross-trial comparison
  *   - groupBy: 'trial' | 'treatment' | 'block' (default: 'treatment')
  *   - assayType: filter by assay_type (for sampleMetadata source)
@@ -84,32 +84,33 @@ export async function GET(request: NextRequest) {
       ? [trialId]
       : []
 
+  // Require at least one trial ID to prevent full table scans
+  if (trialIds.length === 0) {
+    return NextResponse.json(
+      { error: 'At least one trialId or trialIds parameter is required' },
+      { status: 400 }
+    )
+  }
+
   // Fetch raw data from the appropriate source table
   let rawData: any[] = []
 
   if (source === 'sampleMetadata') {
-    let query = supabase.from('sample_metadata').select('*')
-    if (trialIds.length > 0) query = query.in('trial_id', trialIds)
+    let query = supabase.from('sample_metadata').select('*').in('trial_id', trialIds)
     if (assayType) query = query.eq('assay_type', assayType)
     const { data, error } = await query
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     rawData = data || []
   } else if (source === 'soilChemistry') {
-    let query = supabase.from('soil_chemistry').select('*')
-    if (trialIds.length > 0) query = query.in('trial_id', trialIds)
-    const { data, error } = await query
+    const { data, error } = await supabase.from('soil_chemistry').select('*').in('trial_id', trialIds)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     rawData = data || []
   } else if (source === 'tissueChemistry') {
-    let query = supabase.from('tissue_chemistry').select('*')
-    if (trialIds.length > 0) query = query.in('trial_id', trialIds)
-    const { data, error } = await query
+    const { data, error } = await supabase.from('tissue_chemistry').select('*').in('trial_id', trialIds)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     rawData = data || []
   } else if (source === 'plotData') {
-    let query = supabase.from('plot_data').select('*')
-    if (trialIds.length > 0) query = query.in('trial_id', trialIds)
-    const { data, error } = await query
+    const { data, error } = await supabase.from('plot_data').select('*').in('trial_id', trialIds)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     // Pivot plot data into long format with synthetic metrics
     rawData = []
@@ -140,10 +141,10 @@ export async function GET(request: NextRequest) {
   // Fetch treatments for label enrichment when grouping by treatment
   let treatmentLabels: Record<string, Record<number, string>> = {}
   if (groupBy === 'treatment') {
-    const tQuery = trialIds.length > 0
-      ? supabase.from('treatments').select('trial_id, trt_number, product, application').in('trial_id', trialIds)
-      : supabase.from('treatments').select('trial_id, trt_number, product, application')
-    const { data: treatments } = await tQuery
+    const { data: treatments } = await supabase
+      .from('treatments')
+      .select('trial_id, trt_number, product, application')
+      .in('trial_id', trialIds)
     for (const t of treatments || []) {
       if (!treatmentLabels[t.trial_id]) treatmentLabels[t.trial_id] = {}
       treatmentLabels[t.trial_id][t.trt_number] = t.product || t.application || `Trt ${t.trt_number}`

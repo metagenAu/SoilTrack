@@ -12,7 +12,7 @@ async function getClients() {
   const [clientsRes, trialsRes, samplesRes] = await Promise.all([
     supabase.from('clients').select('*').order('name'),
     supabase.from('trials').select('id, client_id'),
-    supabase.from('soil_health_samples').select('id, trial_id'),
+    supabase.from('soil_health_samples').select('trial_id'),
   ])
 
   const clients = clientsRes.data || []

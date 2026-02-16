@@ -7,14 +7,14 @@ export const dynamic = 'force-dynamic'
 async function getAnalyticsData() {
   const supabase = createServerSupabaseClient()
 
-  const [trialsRes, clientsRes, samplesRes] = await Promise.all([
+  const [trialsRes, clientCountRes, sampleCountRes, samplesRes] = await Promise.all([
     supabase.from('trials').select('*').order('created_at', { ascending: false }),
-    supabase.from('clients').select('id, name'),
-    supabase.from('soil_health_samples').select('id, trial_id'),
+    supabase.from('clients').select('*', { count: 'exact', head: true }),
+    supabase.from('soil_health_samples').select('*', { count: 'exact', head: true }),
+    supabase.from('soil_health_samples').select('trial_id'),
   ])
 
   const trials = trialsRes.data || []
-  const clients = clientsRes.data || []
   const sampleCounts: Record<string, number> = {}
   for (const s of (samplesRes.data || [])) {
     sampleCounts[s.trial_id] = (sampleCounts[s.trial_id] || 0) + 1
@@ -34,8 +34,8 @@ async function getAnalyticsData() {
       created_at: t.created_at,
       sample_count: sampleCounts[t.id] || 0,
     })),
-    totalClients: clients.length,
-    totalSamples: (samplesRes.data || []).length,
+    totalClients: clientCountRes.count ?? 0,
+    totalSamples: sampleCountRes.count ?? 0,
   }
 }
 

@@ -12,15 +12,15 @@ export const dynamic = 'force-dynamic'
 async function getDashboardData() {
   const supabase = createServerSupabaseClient()
 
-  const [trialsRes, clientsRes, samplesRes, treatmentsRes] = await Promise.all([
+  const [trialsRes, clientCountRes, sampleCountRes, samplesRes, treatmentsRes] = await Promise.all([
     supabase.from('trials').select('*').order('created_at', { ascending: false }),
-    supabase.from('clients').select('id'),
-    supabase.from('soil_health_samples').select('id, trial_id'),
+    supabase.from('clients').select('*', { count: 'exact', head: true }),
+    supabase.from('soil_health_samples').select('*', { count: 'exact', head: true }),
+    supabase.from('soil_health_samples').select('trial_id'),
     supabase.from('treatments').select('trial_id, product'),
   ])
 
   const trials = trialsRes.data || []
-  const clients = clientsRes.data || []
   const samples = samplesRes.data || []
   const treatments = treatmentsRes.data || []
 
@@ -60,8 +60,8 @@ async function getDashboardData() {
     trials: trialsWithMeta,
     activeTrials,
     completedTrials,
-    totalSamples: samples.length,
-    totalClients: clients.length,
+    totalSamples: sampleCountRes.count ?? 0,
+    totalClients: clientCountRes.count ?? 0,
     productTrialCounts,
   }
 }

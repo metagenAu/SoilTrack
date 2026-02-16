@@ -19,15 +19,15 @@ export const dynamic = 'force-dynamic'
 async function getTrialData(id: string) {
   const supabase = createServerSupabaseClient()
 
-  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemRes, tissueRes, metadataRes, photosRes] = await Promise.all([
+  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemCountRes, tissueCountRes, metadataRes, photosRes] = await Promise.all([
     supabase.from('trials').select('*').eq('id', id).single(),
     supabase.from('treatments').select('*').eq('trial_id', id).order('sort_order'),
     supabase.from('soil_health_samples').select('*').eq('trial_id', id).order('sample_no'),
     supabase.from('plot_data').select('*').eq('trial_id', id).order('plot'),
     supabase.from('management_log').select('*').eq('trial_id', id).order('date'),
     supabase.from('trial_data_files').select('*').eq('trial_id', id),
-    supabase.from('soil_chemistry').select('*').eq('trial_id', id),
-    supabase.from('tissue_chemistry').select('*').eq('trial_id', id),
+    supabase.from('soil_chemistry').select('*', { count: 'exact', head: true }).eq('trial_id', id),
+    supabase.from('tissue_chemistry').select('*', { count: 'exact', head: true }).eq('trial_id', id),
     supabase.from('sample_metadata').select('*').eq('trial_id', id).order('sample_no'),
     supabase.from('trial_photos').select('*').eq('trial_id', id).order('created_at', { ascending: false }),
   ])
@@ -64,8 +64,8 @@ async function getTrialData(id: string) {
     plots,
     log: logRes.data || [],
     dataCoverage,
-    chemistryCount: (chemRes.data || []).length,
-    tissueCount: (tissueRes.data || []).length,
+    chemistryCount: chemCountRes.count ?? 0,
+    tissueCount: tissueCountRes.count ?? 0,
     metadata: metadataRes.data || [],
     photos: photosRes.data || [],
   }

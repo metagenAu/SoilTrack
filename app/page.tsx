@@ -12,20 +12,20 @@ async function getLandingStats() {
     return { activeTrials: 0, totalSamples: 0, crops: 0, regions: 0, products: 0 }
   }
 
-  const [trialsRes, samplesRes, treatmentsRes, clientsRes] = await Promise.all([
-    supabase.from('trials').select('status, crop'),
-    supabase.from('soil_health_samples').select('id'),
+  const [activeTrialsRes, sampleCountRes, trialsRes, treatmentsRes, clientsRes] = await Promise.all([
+    supabase.from('trials').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+    supabase.from('soil_health_samples').select('*', { count: 'exact', head: true }),
+    supabase.from('trials').select('crop'),
     supabase.from('treatments').select('product'),
     supabase.from('clients').select('region'),
   ])
 
   const trials = trialsRes.data || []
-  const samples = samplesRes.data || []
   const treatments = treatmentsRes.data || []
   const clients = clientsRes.data || []
 
-  const activeTrials = trials.filter((t) => t.status === 'active').length
-  const totalSamples = samples.length
+  const activeTrials = activeTrialsRes.count ?? 0
+  const totalSamples = sampleCountRes.count ?? 0
   const crops = new Set(trials.map((t) => t.crop).filter(Boolean)).size
   const regions = new Set(clients.map((c) => c.region).filter(Boolean)).size
   const products = new Set(
