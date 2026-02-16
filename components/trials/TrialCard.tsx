@@ -22,19 +22,19 @@ export default function TrialCard({ trial }: TrialCardProps) {
   return (
     <Link
       href={`/trials/${encodeURIComponent(trial.id)}`}
-      className="card hover:border-meta-blue/40 transition-colors group block"
+      className="card hover:border-brand-grey-1/50 transition-colors group block"
     >
       <div className="flex items-start gap-3">
         {/* Circle avatar */}
-        <div className="w-10 h-10 rounded-full bg-meta-blue/10 flex items-center justify-center flex-shrink-0">
-          <span className="font-mono text-xs font-bold text-meta-blue">
+        <div className="w-10 h-10 rounded-full bg-brand-grey-3 flex items-center justify-center flex-shrink-0">
+          <span className="font-mono text-xs font-semibold text-brand-black/60">
             {trial.id}
           </span>
         </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-sm font-semibold text-brand-black truncate group-hover:text-meta-blue transition-colors">
+            <h3 className="text-sm font-semibold text-brand-black truncate group-hover:text-brand-black/70 transition-colors">
               {trial.name}
             </h3>
             <StatusPill status={trial.status} />

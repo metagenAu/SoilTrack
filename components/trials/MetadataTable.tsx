@@ -53,7 +53,7 @@ export default function MetadataTable({ metadata }: { metadata: MetadataEntry[] 
           <select
             value={filterAssay}
             onChange={e => setFilterAssay(e.target.value)}
-            className="w-full px-3 py-1.5 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-xs text-brand-black focus:outline-none focus:border-meta-blue"
+            className="w-full px-3 py-1.5 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-xs text-brand-black focus:outline-none focus:border-brand-black/30"
           >
             <option value="">All ({assayTypes.length})</option>
             {assayTypes.map(at => (
@@ -66,7 +66,7 @@ export default function MetadataTable({ metadata }: { metadata: MetadataEntry[] 
           <select
             value={filterMetric}
             onChange={e => setFilterMetric(e.target.value)}
-            className="w-full px-3 py-1.5 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-xs text-brand-black focus:outline-none focus:border-meta-blue"
+            className="w-full px-3 py-1.5 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-xs text-brand-black focus:outline-none focus:border-brand-black/30"
           >
             <option value="">All ({metrics.length})</option>
             {metrics.map(m => (

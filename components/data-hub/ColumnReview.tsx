@@ -160,7 +160,7 @@ export default function ColumnReview({
                 className={cn(
                   'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors',
                   i === currentStep
-                    ? 'bg-meta-blue text-white'
+                    ? 'bg-brand-black text-white'
                     : 'bg-brand-grey-3 text-brand-grey-1 hover:text-brand-black'
                 )}
               >
@@ -201,7 +201,7 @@ export default function ColumnReview({
               <select
                 value={currentMappings[col] || '__skip__'}
                 onChange={(e) => updateMapping(col, e.target.value)}
-                className="w-48 px-2 py-1.5 rounded-lg border border-brand-grey-2 bg-white text-sm text-brand-black focus:outline-none focus:border-meta-blue"
+                className="w-48 px-2 py-1.5 rounded-lg border border-brand-grey-2 bg-white text-sm text-brand-black focus:outline-none focus:border-brand-black/30"
               >
                 <option value="__skip__">Skip (ignore)</option>
                 {fieldOptions.map((f) => (

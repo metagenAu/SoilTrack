@@ -75,10 +75,10 @@ export default async function DashboardPage() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-4 gap-4 mb-8">
-        <StatCard label="ACTIVE TRIALS" value={data.activeTrials} borderColor="#00BB7E" />
-        <StatCard label="COMPLETED" value={data.completedTrials} borderColor="#008BCE" />
-        <StatCard label="SOIL SAMPLES" value={data.totalSamples} borderColor="#006AC6" />
-        <StatCard label="CLIENTS" value={data.totalClients} borderColor="#004C97" />
+        <StatCard label="ACTIVE TRIALS" value={data.activeTrials} borderColor="#B9BCBF" />
+        <StatCard label="COMPLETED" value={data.completedTrials} borderColor="#DCDDDF" />
+        <StatCard label="SOIL SAMPLES" value={data.totalSamples} borderColor="#B9BCBF" />
+        <StatCard label="CLIENTS" value={data.totalClients} borderColor="#DCDDDF" />
       </div>
 
       {/* Products Under Trial */}

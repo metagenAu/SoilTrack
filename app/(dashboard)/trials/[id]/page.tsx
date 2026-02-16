@@ -90,7 +90,7 @@ export default async function TrialDetailPage({
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <span className="font-mono text-lg font-bold text-meta-blue">{trial.id}</span>
+              <span className="font-mono text-lg font-semibold text-brand-black/60">{trial.id}</span>
               <StatusPill status={trial.status} />
             </div>
             <h1 className="text-xl font-bold text-brand-black mb-1">{trial.name}</h1>

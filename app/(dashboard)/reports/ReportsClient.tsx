@@ -43,7 +43,7 @@ export default function ReportsClient({ trials }: { trials: { id: string; name: 
             <select
               value={selectedTrial}
               onChange={(e) => setSelectedTrial(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-meta-blue"
+              className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-brand-black/30"
             >
               <option value="">Choose a trial...</option>
               {trials.map((t) => (
@@ -72,7 +72,7 @@ export default function ReportsClient({ trials }: { trials: { id: string; name: 
           {/* Trial header */}
           <div className="card">
             <div className="flex items-center gap-3 mb-3">
-              <span className="font-mono text-lg font-bold text-meta-blue">{report.trial.id}</span>
+              <span className="font-mono text-lg font-semibold text-brand-black/60">{report.trial.id}</span>
               <StatusPill status={report.trial.status} />
             </div>
             <h2 className="text-lg font-bold text-brand-black mb-2">{report.trial.name}</h2>

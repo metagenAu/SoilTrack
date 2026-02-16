@@ -41,15 +41,15 @@ export default function Sidebar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-3 h-[56px] border-b border-brand-grey-2">
-        <div className="w-[30px] h-[30px] rounded-full bg-meta-blue flex items-center justify-center flex-shrink-0">
-          <span className="text-white font-bold text-sm">M</span>
+        <div className="w-[30px] h-[30px] rounded-lg bg-brand-black flex items-center justify-center flex-shrink-0">
+          <span className="text-white font-semibold text-sm">M</span>
         </div>
         {!collapsed && (
           <div className="flex flex-col leading-tight">
-            <span className="text-sm font-bold text-brand-black">
-              <span className="font-bold">meta</span>
-              <span className="font-normal">gen</span>
-              <sup className="text-[9px] ml-0.5">AUS</sup>
+            <span className="text-sm text-brand-black">
+              <span className="font-semibold">meta</span>
+              <span className="font-light">gen</span>
+              <sup className="text-[9px] ml-0.5 text-brand-grey-1">AUS</sup>
             </span>
             <span className="text-[10px] text-brand-grey-1 uppercase tracking-wider">
               SoilTrack
@@ -74,8 +74,8 @@ export default function Sidebar() {
               className={cn(
                 'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors',
                 isActive
-                  ? 'bg-meta-blue/10 text-meta-blue font-medium'
-                  : 'text-brand-black/70 hover:bg-brand-grey-3 hover:text-brand-black'
+                  ? 'bg-brand-grey-3 text-brand-black font-medium'
+                  : 'text-brand-black/50 hover:bg-brand-grey-3 hover:text-brand-black'
               )}
             >
               <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />

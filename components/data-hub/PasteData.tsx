@@ -76,7 +76,7 @@ export default function PasteData({ trials }: { trials: { id: string; name: stri
         <select
           value={selectedTrial}
           onChange={(e) => setSelectedTrial(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-meta-blue"
+          className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-brand-black/30"
         >
           <option value="">Select a trial...</option>
           {trials.map((t) => (
@@ -90,7 +90,7 @@ export default function PasteData({ trials }: { trials: { id: string; name: stri
         <select
           value={dataType}
           onChange={(e) => setDataType(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-meta-blue"
+          className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-brand-black/30"
         >
           {DATA_TYPES.map((dt) => (
             <option key={dt.value} value={dt.value}>{dt.label}</option>
@@ -105,7 +105,7 @@ export default function PasteData({ trials }: { trials: { id: string; name: stri
           onChange={(e) => setCsvText(e.target.value)}
           rows={10}
           placeholder="Paste your CSV data here (including headers)..."
-          className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm font-mono text-brand-black focus:outline-none focus:border-meta-blue resize-none"
+          className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm font-mono text-brand-black focus:outline-none focus:border-brand-black/30 resize-none"
         />
       </div>
 

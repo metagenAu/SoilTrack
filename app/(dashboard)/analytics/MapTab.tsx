@@ -100,7 +100,7 @@ export default function MapTab({ trials }: { trials: Trial[] }) {
             className={cn(
               'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
               selectedCrop === null
-                ? 'bg-meta-blue text-white'
+                ? 'bg-brand-black text-white'
                 : 'bg-brand-grey-3 text-brand-black/70 hover:bg-brand-grey-2'
             )}
           >
