@@ -18,7 +18,7 @@ import {
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Data Hub', href: '/data-hub', icon: Database },
   { label: 'Trials', href: '/trials', icon: FlaskConical },
   { label: 'Clients', href: '/clients', icon: Users },
@@ -62,8 +62,8 @@ export default function Sidebar() {
       <nav className="flex-1 py-3 px-2 space-y-0.5">
         {navItems.map((item) => {
           const isActive =
-            item.href === '/'
-              ? pathname === '/'
+            item.href === '/dashboard'
+              ? pathname === '/dashboard'
               : pathname.startsWith(item.href)
           const Icon = item.icon
 

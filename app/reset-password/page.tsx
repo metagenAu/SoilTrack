@@ -40,7 +40,7 @@ export default function ResetPasswordPage() {
     } else {
       setMessage('Password updated successfully. Redirecting...')
       setTimeout(() => {
-        window.location.href = '/'
+        window.location.href = '/dashboard'
       }, 1500)
     }
     setLoading(false)

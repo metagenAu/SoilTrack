@@ -110,7 +110,7 @@ export default function LoginPage() {
         setError(error.message)
       }
     } else {
-      window.location.href = '/'
+      window.location.href = '/dashboard'
     }
     setLoading(false)
   }
