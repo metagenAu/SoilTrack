@@ -13,7 +13,7 @@ export interface TissueChemistryRow {
 export function parseTissueChemistry(buffer: ArrayBuffer): TissueChemistryRow[] {
   const workbook = XLSX.read(buffer, { type: 'array' })
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
-  const data: Record<string, string>[] = XLSX.utils.sheet_to_json(sheet)
+  const data: Record<string, string>[] = XLSX.utils.sheet_to_json(sheet, { raw: true })
 
   const rows: TissueChemistryRow[] = []
 

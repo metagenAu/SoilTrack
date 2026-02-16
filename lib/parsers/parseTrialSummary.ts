@@ -37,7 +37,7 @@ export function parseTrialSummary(buffer: ArrayBuffer): TrialSummaryResult {
     (n) => n.toLowerCase().includes('treatment')
   ) || workbook.SheetNames[0]
   const sheet = workbook.Sheets[sheetName]
-  const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+  const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true })
 
   // Parse metadata from key-value rows
   const metadata: Record<string, string> = {}
@@ -94,8 +94,21 @@ export function parseTrialSummary(buffer: ArrayBuffer): TrialSummaryResult {
 
   function parseDate(val: string): string | null {
     if (!val) return null
-    const d = new Date(val)
-    return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0]
+
+    // With raw:true, date cells come through as Excel serial numbers.
+    // Excel serial date = days since 1899-12-30 (includes the Lotus 1-2-3 bug).
+    const num = Number(val)
+    if (!isNaN(num) && num > 1 && num < 200000) {
+      const ms = Date.UTC(1899, 11, 30) + num * 86400000
+      return new Date(ms).toISOString().split('T')[0]
+    }
+
+    try {
+      const d = new Date(val)
+      return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0]
+    } catch {
+      return null
+    }
   }
 
   return {

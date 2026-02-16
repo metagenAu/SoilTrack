@@ -47,7 +47,7 @@ export function parseRawContent(
   if (isExcel) {
     const workbook = XLSX.read(content as ArrayBuffer, { type: 'array' })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    const data: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet)
+    const data: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { raw: true })
     const headers = data.length > 0 ? Object.keys(data[0]) : []
     // Normalize all values to strings for consistency
     const rows = data.map(row => {
