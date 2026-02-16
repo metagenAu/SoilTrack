@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     files = formData.getAll('files') as File[]
   } catch (err: any) {
+    console.error('[upload/folder] Init error:', err)
     return NextResponse.json(
       { error: err?.message || 'Failed to read upload data', results: [] },
       { status: 400 }
@@ -305,6 +306,7 @@ export async function POST(request: NextRequest) {
     } catch (err: any) {
       const filename = file.name || 'unnamed'
       const classification = classifyFile(filename)
+      console.error(`[upload/folder] Error processing ${filename} (${classification}):`, err?.message || err)
 
       results.push({
         filename,

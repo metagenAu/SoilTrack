@@ -303,7 +303,7 @@ export default function FolderUpload() {
                 <FileText size={14} className="text-brand-grey-1 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-brand-black truncate">{r.filename}</p>
-                  <p className="text-xs text-brand-grey-1">
+                  <p className={cn('text-xs', r.status === 'error' ? 'text-red-500' : 'text-brand-grey-1')}>
                     {r.type}{r.records !== undefined ? ` — ${r.records} records imported` : ''}
                     {r.detail ? ` — ${r.detail}` : ''}
                   </p>
