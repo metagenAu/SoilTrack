@@ -9,13 +9,16 @@ export async function GET(request: Request) {
   const type = searchParams.get('type') as EmailOtpType | null
   const next = searchParams.get('next') ?? '/'
 
+  // Invited users should set up their password before accessing the app
+  const redirectTo = type === 'invite' ? '/reset-password' : next
+
   const supabase = createServerSupabaseClient()
 
   // Handle PKCE code exchange (magic links, OAuth, invitations with PKCE)
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${origin}${redirectTo}`)
     }
   }
 
@@ -23,7 +26,7 @@ export async function GET(request: Request) {
   if (token_hash && type) {
     const { error } = await supabase.auth.verifyOtp({ token_hash, type })
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${origin}${redirectTo}`)
     }
   }
 
