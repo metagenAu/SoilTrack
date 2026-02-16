@@ -1,5 +1,7 @@
 import { createAdminSupabaseClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
+import ParticleNetwork from '@/components/landing/ParticleNetwork'
+import AnimatedCounter from '@/components/landing/AnimatedCounter'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +53,7 @@ export default async function LandingPage() {
           overflow: hidden;
         }
 
+        /* ═══ BACKGROUND ═══ */
         .landing-bg {
           position: absolute;
           inset: 0;
@@ -69,6 +72,60 @@ export default async function LandingPage() {
           background-size: 180px;
         }
 
+        /* ═══ FLOATING ORBS ═══ */
+        .landing-orb {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(80px);
+          pointer-events: none;
+          z-index: 1;
+        }
+        .landing-orb-1 {
+          width: 400px; height: 400px;
+          background: radial-gradient(circle, rgba(0,139,206,0.15) 0%, transparent 70%);
+          top: 10%;
+          left: 15%;
+          animation: landing-orbFloat1 12s ease-in-out infinite;
+        }
+        .landing-orb-2 {
+          width: 300px; height: 300px;
+          background: radial-gradient(circle, rgba(0,187,126,0.1) 0%, transparent 70%);
+          bottom: 20%;
+          right: 10%;
+          animation: landing-orbFloat2 15s ease-in-out infinite;
+        }
+        .landing-orb-3 {
+          width: 250px; height: 250px;
+          background: radial-gradient(circle, rgba(153,240,250,0.06) 0%, transparent 70%);
+          top: 50%;
+          right: 30%;
+          animation: landing-orbFloat3 18s ease-in-out infinite;
+        }
+        .landing-orb-4 {
+          width: 350px; height: 350px;
+          background: radial-gradient(circle, rgba(0,76,151,0.12) 0%, transparent 70%);
+          bottom: 30%;
+          left: 5%;
+          animation: landing-orbFloat2 20s ease-in-out infinite reverse;
+        }
+
+        @keyframes landing-orbFloat1 {
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+          33% { transform: translate(60px, -40px) scale(1.1); opacity: 1; }
+          66% { transform: translate(-30px, 30px) scale(0.9); opacity: 0.7; }
+        }
+        @keyframes landing-orbFloat2 {
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+          50% { transform: translate(-50px, -60px) scale(1.15); opacity: 0.9; }
+        }
+        @keyframes landing-orbFloat3 {
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+          25% { transform: translate(40px, 20px) scale(1.05); opacity: 0.8; }
+          50% { transform: translate(-20px, -50px) scale(0.95); opacity: 0.5; }
+          75% { transform: translate(30px, -30px) scale(1.1); opacity: 0.7; }
+        }
+
+        /* ═══ TOP BAR ═══ */
         .landing-topbar {
           position: absolute;
           top: 0; left: 0; right: 0;
@@ -96,6 +153,7 @@ export default async function LandingPage() {
           font-weight: 800;
           font-size: 15px;
           color: #fff;
+          box-shadow: 0 0 20px rgba(0,139,206,0.3);
         }
         .landing-wm { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.1; }
         .landing-wm span { font-weight: 400; }
@@ -106,17 +164,18 @@ export default async function LandingPage() {
           text-decoration: none;
           font-size: 13px;
           font-weight: 500;
-          transition: color 0.2s;
+          transition: color 0.25s;
         }
         .landing-topbar a:hover { color: rgba(255,255,255,0.8); }
 
+        /* ═══ MAIN ═══ */
         .landing-main {
           flex: 1;
           display: flex;
           align-items: center;
           justify-content: center;
           position: relative;
-          z-index: 2;
+          z-index: 10;
           padding-bottom: 30px;
         }
 
@@ -127,6 +186,7 @@ export default async function LandingPage() {
           text-align: center;
         }
 
+        /* ═══ SIGNPOST ═══ */
         .landing-signpost {
           margin-bottom: 32px;
           opacity: 0;
@@ -148,6 +208,7 @@ export default async function LandingPage() {
           color: rgba(255,255,255,0.18);
         }
 
+        /* ═══ HEADLINE ═══ */
         .landing-h1 {
           font-size: clamp(34px, 5vw, 66px);
           font-weight: 500;
@@ -172,6 +233,7 @@ export default async function LandingPage() {
           font-weight: 800;
         }
 
+        /* ═══ LEAD ═══ */
         .landing-lead {
           font-size: clamp(13px, 1.3vw, 16px);
           font-weight: 500;
@@ -182,11 +244,13 @@ export default async function LandingPage() {
           animation: landing-fadeUp 0.8s ease forwards 0.55s;
         }
 
+        /* ═══ CTA ═══ */
         .landing-cta {
           opacity: 0;
           animation: landing-fadeUp 0.8s ease forwards 0.7s;
         }
         .landing-btn {
+          position: relative;
           padding: 14px 40px;
           background: #008BCE;
           border: none;
@@ -196,49 +260,77 @@ export default async function LandingPage() {
           font-size: 14px;
           font-weight: 700;
           cursor: pointer;
-          transition: all 0.25s;
-          box-shadow: 0 4px 20px rgba(0,139,206,0.2);
+          transition: all 0.3s;
+          box-shadow: 0 4px 20px rgba(0,139,206,0.25), 0 0 40px rgba(0,139,206,0.1);
           text-decoration: none;
           display: inline-block;
+          overflow: hidden;
+        }
+        .landing-btn::before {
+          content: '';
+          position: absolute;
+          inset: -2px;
+          border-radius: 52px;
+          background: linear-gradient(135deg, rgba(153,240,250,0.3), rgba(0,139,206,0.1), rgba(0,187,126,0.3));
+          z-index: -1;
+          opacity: 0;
+          transition: opacity 0.3s;
         }
         .landing-btn:hover {
           background: #006AC6;
-          transform: translateY(-1px);
-          box-shadow: 0 8px 28px rgba(0,139,206,0.3);
+          transform: translateY(-2px);
+          box-shadow: 0 8px 32px rgba(0,139,206,0.35), 0 0 60px rgba(0,139,206,0.15);
+        }
+        .landing-btn:hover::before {
+          opacity: 1;
         }
 
+        /* ═══ STATS BAR ═══ */
         .landing-stats {
           position: relative;
           z-index: 20;
-          padding: 20px 6vw;
+          padding: 24px 6vw;
           display: flex;
           justify-content: center;
           gap: min(48px, 5vw);
-          border-top: 1px solid rgba(255,255,255,0.04);
-          background: rgba(22,31,40,0.4);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
+          border-top: 1px solid rgba(255,255,255,0.06);
+          background: rgba(22,31,40,0.5);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
           opacity: 0;
           animation: landing-fadeUp 0.6s ease forwards 0.95s;
         }
 
-        .landing-st { display: flex; flex-direction: column; align-items: center; }
+        .landing-st {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          transition: transform 0.25s;
+        }
+        .landing-st:hover {
+          transform: translateY(-2px);
+        }
         .landing-st-v {
           font-family: 'DM Mono', monospace;
-          font-size: 18px;
+          font-size: 20px;
           font-weight: 500;
-          color: rgba(255,255,255,0.55);
+          color: rgba(255,255,255,0.6);
           letter-spacing: -0.5px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(153,240,250,0.5) 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
         }
         .landing-st-l {
           font-size: 9px;
           font-weight: 700;
           letter-spacing: 1.8px;
           text-transform: uppercase;
-          color: rgba(255,255,255,0.12);
-          margin-top: 2px;
+          color: rgba(255,255,255,0.15);
+          margin-top: 3px;
         }
 
+        /* ═══ GHOST DATA ═══ */
         .landing-gh {
           position: absolute;
           font-family: 'DM Mono', monospace;
@@ -256,24 +348,27 @@ export default async function LandingPage() {
         .landing-g3 { bottom: 22%; left: 12%; transform: rotate(-0.3deg); animation-delay: 6s; }
         .landing-g4 { bottom: 32%; right: 10%; transform: rotate(0.6deg); animation-delay: 8s; }
 
+        /* ═══ KEYFRAMES ═══ */
         @keyframes landing-ghP {
           0%, 100% { opacity: 0.015; }
           50% { opacity: 0.06; }
         }
         @keyframes landing-fadeUp {
-          from { opacity: 0; transform: translateY(16px); }
+          from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
         }
         @keyframes landing-fadeDown {
-          from { opacity: 0; transform: translateY(-10px); }
+          from { opacity: 0; transform: translateY(-12px); }
           to { opacity: 1; transform: translateY(0); }
         }
 
+        /* ═══ RESPONSIVE ═══ */
         @media (max-width: 600px) {
           .landing-stats { gap: 20px; flex-wrap: wrap; padding: 16px 20px; }
           .landing-gh { display: none; }
           .landing-hero { padding: 0 20px; }
           .landing-topbar { padding: 24px 24px; }
+          .landing-orb { display: none; }
         }
       `}</style>
 
@@ -281,6 +376,16 @@ export default async function LandingPage() {
         <div className="landing-bg" />
         <div className="landing-grain" />
 
+        {/* Floating orbs */}
+        <div className="landing-orb landing-orb-1" />
+        <div className="landing-orb landing-orb-2" />
+        <div className="landing-orb landing-orb-3" />
+        <div className="landing-orb landing-orb-4" />
+
+        {/* Particle network canvas */}
+        <ParticleNetwork />
+
+        {/* Ghost data */}
         <div className="landing-gh landing-g1">pH 6.8 · EC 1.24 · OC 2.41%</div>
         <div className="landing-gh landing-g2">DNA 1.2M reads · 847 OTUs · Shannon 4.12</div>
         <div className="landing-gh landing-g3">Yield 3.8t/ha · Vigour 8 · Disease 1</div>
@@ -328,23 +433,33 @@ export default async function LandingPage() {
 
         <div className="landing-stats">
           <div className="landing-st">
-            <div className="landing-st-v">{stats.activeTrials.toLocaleString()}</div>
+            <div className="landing-st-v">
+              <AnimatedCounter value={stats.activeTrials} duration={1800} />
+            </div>
             <div className="landing-st-l">Active Trials</div>
           </div>
           <div className="landing-st">
-            <div className="landing-st-v">{stats.totalSamples.toLocaleString()}</div>
+            <div className="landing-st-v">
+              <AnimatedCounter value={stats.totalSamples} duration={2200} />
+            </div>
             <div className="landing-st-l">Soil Samples</div>
           </div>
           <div className="landing-st">
-            <div className="landing-st-v">{stats.crops.toLocaleString()}</div>
+            <div className="landing-st-v">
+              <AnimatedCounter value={stats.crops} duration={1500} />
+            </div>
             <div className="landing-st-l">Crops</div>
           </div>
           <div className="landing-st">
-            <div className="landing-st-v">{stats.regions.toLocaleString()}</div>
+            <div className="landing-st-v">
+              <AnimatedCounter value={stats.regions} duration={1500} />
+            </div>
             <div className="landing-st-l">Regions</div>
           </div>
           <div className="landing-st">
-            <div className="landing-st-v">{stats.products.toLocaleString()}</div>
+            <div className="landing-st-v">
+              <AnimatedCounter value={stats.products} duration={1500} />
+            </div>
             <div className="landing-st-l">Products</div>
           </div>
         </div>
