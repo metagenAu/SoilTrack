@@ -44,17 +44,24 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
     formData.append('fileType', fileType)
 
     try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 120_000)
+
       const res = await fetch('/api/upload/single', {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       })
+
+      clearTimeout(timeout)
+
       const data = await res.json()
       setResult(data)
-      if (data.status === 'needs_review') {
-        setReviewOpen(true)
-      }
-    } catch {
-      setResult({ status: 'error', detail: 'Upload failed' })
+    } catch (err: any) {
+      const detail = err?.name === 'AbortError'
+        ? 'Upload timed out — the server took too long to respond'
+        : (err?.message || 'Upload failed')
+      setResult({ status: 'error', detail })
     }
     setUploading(false)
   }

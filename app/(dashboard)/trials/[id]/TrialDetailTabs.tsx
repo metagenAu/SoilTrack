@@ -7,6 +7,7 @@ import SoilHealthTable from '@/components/trials/SoilHealthTable'
 import PlotDataTable from '@/components/trials/PlotDataTable'
 import ManagementLog from '@/components/trials/ManagementLog'
 import MetadataTable from '@/components/trials/MetadataTable'
+import PhotosTab from '@/components/trials/PhotosTab'
 import StatCard from '@/components/ui/StatCard'
 
 interface TrialDetailTabsProps {
@@ -17,9 +18,11 @@ interface TrialDetailTabsProps {
   log: any[]
   dataCoverage: Record<string, boolean>
   metadata: any[]
+  photos: any[]
+  supabaseUrl: string
 }
 
-const tabs = ['Summary', 'Treatments', 'Soil Health', 'Plot Data', 'Assay Results', 'Management']
+const tabs = ['Summary', 'Treatments', 'Soil Health', 'Plot Data', 'Assay Results', 'Photos', 'Management']
 
 export default function TrialDetailTabs({
   trial,
@@ -29,6 +32,8 @@ export default function TrialDetailTabs({
   log,
   dataCoverage,
   metadata,
+  photos,
+  supabaseUrl,
 }: TrialDetailTabsProps) {
   const [activeTab, setActiveTab] = useState('Summary')
 
@@ -112,6 +117,7 @@ export default function TrialDetailTabs({
               <StatCard label="TREATMENTS" value={treatments.length} borderColor="#008BCE" />
               <StatCard label="PLOT RECORDS" value={plots.length} borderColor="#006AC6" />
               <StatCard label="ASSAY RESULTS" value={metadata.length} borderColor="#009775" />
+              <StatCard label="PHOTOS" value={photos.length} borderColor="#E67E22" />
               <StatCard label="LOG ENTRIES" value={log.length} borderColor="#004C97" />
             </div>
           </div>
@@ -139,6 +145,12 @@ export default function TrialDetailTabs({
       {activeTab === 'Assay Results' && (
         <div className="card">
           <MetadataTable metadata={metadata} />
+        </div>
+      )}
+
+      {activeTab === 'Photos' && (
+        <div className="card">
+          <PhotosTab photos={photos} trialId={trial.id} supabaseUrl={supabaseUrl} />
         </div>
       )}
 
