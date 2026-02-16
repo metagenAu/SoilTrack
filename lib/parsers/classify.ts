@@ -26,7 +26,7 @@ export function classifyFile(filename: string): FileClassification {
   if (lower.includes('tissue chemistry')) {
     return 'tissueChemistry'
   }
-  if (lower.includes('assay result') || lower.includes('assay data') || lower.includes('sample metadata') || lower.includes('metadata')) {
+  if (lower.includes('assay result') || lower.includes('assay data') || lower.includes('sample metadata') || lower.includes('sample_metadata')) {
     return 'sampleMetadata'
   }
   if (/\.(jpg|jpeg|png|webp)$/i.test(lower)) {

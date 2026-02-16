@@ -51,6 +51,7 @@ export function parseTrialSummary(buffer: ArrayBuffer): TrialSummaryResult {
     const value = row[1] !== undefined ? String(row[1]).trim() : ''
 
     if (label === 'trial' || label === 'trial id' || label === 'trial no' || label === 'trial no.' || label === 'trial number' || label === 'trial code') metadata.id = value
+    else if (label === 'grower') metadata.grower = value
     else if (label === 'name') metadata.name = value
     else if (label === 'location') metadata.location = value
     else if (label === 'gps') metadata.gps = value
@@ -61,9 +62,6 @@ export function parseTrialSummary(buffer: ArrayBuffer): TrialSummaryResult {
     else if (label === 'harvest' || label === 'harvest date') metadata.harvest_date = value
     else if (label === 'treatments') metadata.num_treatments = value
     else if (label === 'reps') metadata.reps = value
-    else if (label === 'grower' || label === 'name') {
-      if (!metadata.grower) metadata.grower = value
-    }
 
     // Detect treatment table header
     if (label === 'treatment' && row.length >= 3) {
@@ -103,6 +101,25 @@ export function parseTrialSummary(buffer: ArrayBuffer): TrialSummaryResult {
       return new Date(ms).toISOString().split('T')[0]
     }
 
+    // Try YYYY-MM-DD (ISO) first — unambiguous
+    if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
+      const d = new Date(val)
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]
+    }
+    // Try DD/MM/YYYY (AU locale convention)
+    const m = val.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/)
+    if (m) {
+      const day = parseInt(m[1], 10)
+      const month = parseInt(m[2], 10)
+      const year = parseInt(m[3], 10)
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        const d = new Date(year, month - 1, day)
+        if (d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day) {
+          return d.toISOString().split('T')[0]
+        }
+      }
+    }
+    // Fallback: JS Date constructor
     try {
       const d = new Date(val)
       return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0]

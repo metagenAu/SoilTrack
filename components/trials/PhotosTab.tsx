@@ -76,16 +76,28 @@ export default function PhotosTab({ photos: initialPhotos, trialId, supabaseUrl 
     try {
       const supabase = createClient()
 
-      // Delete from storage
-      await supabase.storage.from('trial-photos').remove([photo.storage_path])
+      // Delete from storage first
+      const { error: storageErr } = await supabase.storage.from('trial-photos').remove([photo.storage_path])
+      if (storageErr) throw storageErr
 
       // Delete from database
-      await supabase.from('trial_photos').delete().eq('id', photo.id)
+      const { error: dbErr } = await supabase.from('trial_photos').delete().eq('id', photo.id)
+      if (dbErr) throw dbErr
 
       setPhotos(prev => prev.filter(p => p.id !== photo.id))
       if (lightboxPhoto?.id === photo.id) setLightboxPhoto(null)
     } catch (err) {
       console.error('Photo delete failed:', err)
+      // Re-fetch to sync UI with actual server state
+      try {
+        const supabase = createClient()
+        const { data } = await supabase
+          .from('trial_photos')
+          .select('*')
+          .eq('trial_id', trialId)
+          .order('created_at', { ascending: false })
+        if (data) setPhotos(data)
+      } catch { /* best-effort sync */ }
     } finally {
       setDeleting(null)
     }
