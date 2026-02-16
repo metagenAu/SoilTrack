@@ -1,16 +1,28 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { FolderUp, FileText, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { FolderUp, FileText, CheckCircle, XCircle, Loader2, Clock } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
+import { classifyFile, type FileClassification } from '@/lib/parsers/classify'
 
 interface FileResult {
   filename: string
   type: string
-  status: 'success' | 'error' | 'processing'
+  status: 'success' | 'error' | 'processing' | 'pending'
   detail?: string
   records?: number
+}
+
+const TYPE_LABELS: Record<FileClassification, string> = {
+  trialSummary: 'Trial Summary',
+  soilHealth: 'Soil Health',
+  soilChemistry: 'Soil Chemistry',
+  plotData: 'Plot Data',
+  tissueChemistry: 'Tissue Chemistry',
+  sampleMetadata: 'Assay Results',
+  photo: 'Photo',
+  unknown: 'Unknown',
 }
 
 const IGNORED_FILES = new Set(['.ds_store', 'thumbs.db', 'desktop.ini', '.gitkeep'])
@@ -84,12 +96,17 @@ export default function FolderUpload() {
 
   const handleFiles = useCallback((fileArr: File[]) => {
     setFiles(fileArr)
-    setResults(fileArr.map(f => ({ filename: f.name, type: 'detecting...', status: 'processing' as const })))
+    setResults(fileArr.map(f => ({
+      filename: f.name,
+      type: TYPE_LABELS[classifyFile(f.name)],
+      status: 'pending' as const,
+    })))
   }, [])
 
   async function handleUpload() {
     if (files.length === 0) return
     setUploading(true)
+    setResults(prev => prev.map(r => ({ ...r, status: 'processing' as const })))
 
     const formData = new FormData()
     for (const f of files) {
@@ -101,15 +118,35 @@ export default function FolderUpload() {
         method: 'POST',
         body: formData,
       })
+
+      if (!res.ok) {
+        const text = await res.text()
+        let detail = `Server error (${res.status})`
+        try {
+          const errJson = JSON.parse(text)
+          if (errJson.error) detail = errJson.error
+        } catch {
+          // non-JSON response body
+        }
+        setResults(files.map(f => ({
+          filename: f.name,
+          type: TYPE_LABELS[classifyFile(f.name)],
+          status: 'error' as const,
+          detail,
+        })))
+        setUploading(false)
+        return
+      }
+
       const data = await res.json()
       setResults(data.results || [])
       if (data.trialId) setTrialId(data.trialId)
-    } catch {
+    } catch (err: any) {
       setResults(files.map(f => ({
         filename: f.name,
-        type: 'unknown',
+        type: TYPE_LABELS[classifyFile(f.name)],
         status: 'error' as const,
-        detail: 'Upload failed',
+        detail: err?.message || 'Upload failed — check your connection',
       })))
     }
     setUploading(false)
@@ -180,6 +217,7 @@ export default function FolderUpload() {
                 {r.status === 'success' && <CheckCircle size={16} className="text-green-lush flex-shrink-0" />}
                 {r.status === 'error' && <XCircle size={16} className="text-red-500 flex-shrink-0" />}
                 {r.status === 'processing' && <Loader2 size={16} className="text-meta-blue animate-spin flex-shrink-0" />}
+                {r.status === 'pending' && <Clock size={16} className="text-brand-grey-1 flex-shrink-0" />}
                 <FileText size={14} className="text-brand-grey-1 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-brand-black truncate">{r.filename}</p>
