@@ -202,6 +202,17 @@ export default function FolderUpload() {
               records: sr.records,
             }
           }
+          // Fallback: positional match (server filename may differ from browser)
+          const summaryIdx = summaryIndices.indexOf(idx)
+          if (summaryIdx >= 0 && summaryIdx < serverResults.length) {
+            const positional = serverResults[summaryIdx]
+            return {
+              ...r,
+              status: positional.status as FileResult['status'],
+              detail: positional.detail,
+              records: positional.records,
+            }
+          }
           return { ...r, status: 'error' as const, detail: 'No response received from server' }
         }))
       } catch (err: any) {
