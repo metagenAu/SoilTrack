@@ -21,7 +21,8 @@ export default function LoginPage() {
     setMessage('')
 
     if (mode === 'magic') {
-      const { error } = await supabase.auth.signInWithOtp({ email })
+      const redirectTo = `${window.location.origin}/auth/callback`
+      const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } })
       if (error) {
         setError(error.message)
       } else {
@@ -32,7 +33,8 @@ export default function LoginPage() {
     }
 
     if (mode === 'signup') {
-      const { error } = await supabase.auth.signUp({ email, password })
+      const redirectTo = `${window.location.origin}/auth/callback`
+      const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } })
       if (error) {
         setError(error.message)
       } else {
