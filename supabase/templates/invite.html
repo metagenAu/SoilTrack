@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>You're invited to SoilTrack</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F3F4F4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #F3F4F4; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <!-- Header with logo -->
+        <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width: 480px; width: 100%;">
+          <tr>
+            <td align="center" style="padding: 0 0 32px 0;">
+              <!-- Logo circle -->
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="width: 48px; height: 48px; background-color: #008BCE; border-radius: 50%;">
+                    <span style="color: #FFFFFF; font-size: 22px; font-weight: bold; line-height: 48px;">M</span>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin: 8px 0 0 0; font-size: 14px; color: #002E5D;">
+                <strong>meta</strong>gen<sup style="font-size: 9px;">AUS</sup>
+              </p>
+              <p style="margin: 2px 0 0 0; font-size: 10px; color: #B9BCBF; text-transform: uppercase; letter-spacing: 2px;">
+                SoilTrack
+              </p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Main card -->
+        <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width: 480px; width: 100%; background-color: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+          <!-- Blue accent bar -->
+          <tr>
+            <td style="height: 4px; background-color: #008BCE;"></td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px 36px;">
+              <h1 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 600; color: #161F28;">
+                You've been invited
+              </h1>
+              <p style="margin: 0 0 24px 0; font-size: 14px; color: #6B7280; line-height: 1.5;">
+                A team member has invited you to join <strong style="color: #161F28;">SoilTrack</strong>, Metagen's field-trial management platform.
+              </p>
+
+              <!-- CTA button -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding: 8px 0 24px 0;">
+                    <a href="{{ .ConfirmationURL }}"
+                       target="_blank"
+                       style="display: inline-block; padding: 12px 32px; background-color: #008BCE; color: #FFFFFF; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 8px; letter-spacing: 0.3px;">
+                      Accept Invitation
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 0 0 16px 0; font-size: 13px; color: #6B7280; line-height: 1.5;">
+                After accepting, you'll be asked to set a password for your account. Once set up, you can sign in at any time to manage trials, view results, and access reports.
+              </p>
+
+              <!-- Divider -->
+              <hr style="border: none; border-top: 1px solid #F3F4F4; margin: 24px 0;" />
+
+              <p style="margin: 0; font-size: 12px; color: #B9BCBF; line-height: 1.5;">
+                If the button doesn't work, copy and paste this link into your browser:
+              </p>
+              <p style="margin: 4px 0 0 0; font-size: 12px; word-break: break-all;">
+                <a href="{{ .ConfirmationURL }}" style="color: #008BCE; text-decoration: none;">{{ .ConfirmationURL }}</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Footer -->
+        <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width: 480px; width: 100%;">
+          <tr>
+            <td align="center" style="padding: 24px 0;">
+              <p style="margin: 0; font-size: 11px; color: #B9BCBF; line-height: 1.6;">
+                Metagen Australia &middot; Agricultural Biologicals
+              </p>
+              <p style="margin: 4px 0 0 0; font-size: 11px; color: #B9BCBF;">
+                This invitation was sent to {{ .Email }}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
