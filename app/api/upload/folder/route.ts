@@ -239,7 +239,8 @@ export async function POST(request: NextRequest) {
       } else if (classification === 'photo') {
         results.push({ filename: file.name, type: 'Photo', status: 'success', detail: 'Skipped (photo storage not yet configured)' })
       } else {
-        results.push({ filename: file.name, type: 'Unknown', status: 'error', detail: 'Unrecognized file type' })
+        // Skip unrecognized files silently (e.g. READMEs, system files)
+        results.push({ filename: file.name, type: 'Unknown', status: 'success', detail: 'Skipped — not a recognised data file' })
       }
     } catch (err: any) {
       results.push({
