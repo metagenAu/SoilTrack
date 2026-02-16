@@ -32,6 +32,9 @@ export default function PasteData({ trials }: { trials: { id: string; name: stri
     setResult(null)
 
     try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 120_000)
+
       const res = await fetch('/api/upload/paste', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -40,11 +43,18 @@ export default function PasteData({ trials }: { trials: { id: string; name: stri
           dataType,
           csvText: csvText.trim(),
         }),
+        signal: controller.signal,
       })
+
+      clearTimeout(timeout)
+
       const data = await res.json()
       setResult(data)
-    } catch {
-      setResult({ status: 'error', detail: 'Import failed' })
+    } catch (err: any) {
+      const detail = err?.name === 'AbortError'
+        ? 'Import timed out — the server took too long to respond'
+        : (err?.message || 'Import failed')
+      setResult({ status: 'error', detail })
     }
     setImporting(false)
   }

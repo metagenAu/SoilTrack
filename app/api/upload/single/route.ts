@@ -11,8 +11,16 @@ import { parseSampleMetadata } from '@/lib/parsers/parseSampleMetadata'
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
-  const supabase = createServerSupabaseClient()
-  const formData = await request.formData()
+  let supabase: ReturnType<typeof createServerSupabaseClient>
+  let formData: FormData
+
+  try {
+    supabase = createServerSupabaseClient()
+    formData = await request.formData()
+  } catch (err: any) {
+    return NextResponse.json({ status: 'error', detail: err?.message || 'Failed to read upload data' }, { status: 400 })
+  }
+
   const file = formData.get('file') as File | null
   const trialId = formData.get('trialId') as string
   const fileType = formData.get('fileType') as string
@@ -21,7 +29,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: 'error', detail: 'Missing file or trial ID' }, { status: 400 })
   }
 
-  const classification = fileType === 'auto' ? classifyFile(file.name) : fileType
+  const classification = fileType === 'auto' ? classifyFile(file.name || '') : fileType
 
   try {
     let records = 0
@@ -101,23 +109,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'error', detail: 'Unrecognized file type' })
     }
 
-    await supabase.from('upload_log').insert({
-      trial_id: trialId,
-      filename: file.name,
-      file_type: classification,
-      status: 'success',
-      records_imported: records,
-    })
+    try {
+      await supabase.from('upload_log').insert({
+        trial_id: trialId,
+        filename: file.name,
+        file_type: classification,
+        status: 'success',
+        records_imported: records,
+      })
+    } catch { /* logging is best-effort */ }
 
     return NextResponse.json({ status: 'success', detail: `Imported successfully`, records })
   } catch (err: any) {
-    await supabase.from('upload_log').insert({
-      trial_id: trialId,
-      filename: file.name,
-      file_type: classification,
-      status: 'error',
-      detail: err.message,
-    })
-    return NextResponse.json({ status: 'error', detail: err.message || 'Processing failed' })
+    try {
+      await supabase.from('upload_log').insert({
+        trial_id: trialId,
+        filename: file.name,
+        file_type: classification,
+        status: 'error',
+        detail: err?.message,
+      })
+    } catch { /* logging is best-effort */ }
+    return NextResponse.json({ status: 'error', detail: err?.message || 'Processing failed' })
   }
 }

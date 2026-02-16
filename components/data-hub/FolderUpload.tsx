@@ -114,7 +114,8 @@ export default function FolderUpload() {
   async function handleUpload() {
     if (files.length === 0) return
     setUploading(true)
-    setResults(prev => prev.map(r => ({ ...r, status: 'pending' as const })))
+    setTrialId(null)
+    setResults(prev => prev.map(r => ({ ...r, status: 'pending' as const, detail: undefined, records: undefined })))
 
     // Handle photos/unknown client-side, batch data files for server
     const dataFileIndices: number[] = []
@@ -145,40 +146,86 @@ export default function FolderUpload() {
       ))
 
       try {
+        // Abort if the server doesn't respond within 2 minutes
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 120_000)
+
         const res = await fetch('/api/upload/folder', {
           method: 'POST',
           body: formData,
+          signal: controller.signal,
         })
 
-        if (!res.ok) throw new Error(`Server error (${res.status})`)
+        clearTimeout(timeout)
+
+        if (!res.ok) {
+          // Try to extract error detail from JSON body
+          let detail = `Server error (${res.status})`
+          try {
+            const body = await res.json()
+            if (body?.error) detail = body.error
+          } catch { /* body wasn't JSON */ }
+          throw new Error(detail)
+        }
 
         const data = await res.json()
         if (data.trialId) setTrialId(data.trialId)
 
-        // Map server results back to UI by filename
+        // Map server results back to UI — try by filename first, fall back to order
+        const serverResults: FileResult[] = data.results || []
         const resultsByName = new Map<string, FileResult>()
-        for (const r of (data.results || [])) {
+        for (const r of serverResults) {
           resultsByName.set(r.filename, r)
         }
 
-        setResults(prev => prev.map(r => {
-          const serverResult = resultsByName.get(r.filename)
-          if (serverResult) {
-            return {
-              ...r,
-              status: serverResult.status as 'success' | 'error',
-              detail: serverResult.detail,
-              records: serverResult.records,
+        setResults(prev => {
+          const updated = prev.map((r, idx) => {
+            // Only update data-file entries (photos/unknowns are already handled)
+            if (!dataFileIndices.includes(idx)) return r
+
+            // Try matching by filename
+            const serverResult = resultsByName.get(r.filename)
+            if (serverResult) {
+              return {
+                ...r,
+                status: serverResult.status as 'success' | 'error',
+                detail: serverResult.detail,
+                records: serverResult.records,
+              }
             }
-          }
-          return r
-        }))
+
+            // Fallback: match by position in the data file list
+            const dataIdx = dataFileIndices.indexOf(idx)
+            if (dataIdx >= 0 && dataIdx < serverResults.length) {
+              const sr = serverResults[dataIdx]
+              return {
+                ...r,
+                status: sr.status as 'success' | 'error',
+                detail: sr.detail,
+                records: sr.records,
+              }
+            }
+
+            return r
+          })
+
+          // Safety sweep: any files still stuck on 'processing' should show an error
+          return updated.map(r =>
+            r.status === 'processing'
+              ? { ...r, status: 'error' as const, detail: 'No response received from server' }
+              : r
+          )
+        })
       } catch (err: any) {
+        const detail = err?.name === 'AbortError'
+          ? 'Upload timed out — the server took too long to respond'
+          : (err?.message || 'Upload failed')
+
         setResults(prev => prev.map((r, idx) =>
           dataFileIndices.includes(idx) ? {
             ...r,
             status: 'error' as const,
-            detail: err?.message || 'Upload failed',
+            detail,
           } : r
         ))
       }
