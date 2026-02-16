@@ -8,12 +8,15 @@ export async function GET(request: Request) {
   const type = searchParams.get('type') as EmailOtpType | null
   const next = searchParams.get('next') ?? '/'
 
+  // Invited users should set up their password before accessing the app
+  const redirectTo = type === 'invite' ? '/reset-password' : next
+
   if (token_hash && type) {
     const supabase = createServerSupabaseClient()
     const { error } = await supabase.auth.verifyOtp({ token_hash, type })
 
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${origin}${redirectTo}`)
     }
   }
 
