@@ -47,7 +47,7 @@ export default async function LandingPage() {
           height: 100vh;
           display: flex;
           flex-direction: column;
-          font-family: 'Space Grotesk', system-ui, sans-serif;
+          font-family: var(--font-sans), system-ui, sans-serif;
           background: #161F28;
           color: #fff;
           overflow: hidden;
@@ -257,7 +257,7 @@ export default async function LandingPage() {
           align-items: center;
         }
         .landing-st-v {
-          font-family: 'JetBrains Mono', monospace;
+          font-family: var(--font-mono), monospace;
           font-size: 20px;
           font-weight: 500;
           color: rgba(255,255,255,0.5);
@@ -275,7 +275,7 @@ export default async function LandingPage() {
         /* ═══ GHOST DATA ═══ */
         .landing-gh {
           position: absolute;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: var(--font-mono), monospace;
           font-size: 10px;
           color: rgba(160,175,190,0.04);
           letter-spacing: 1.5px;
