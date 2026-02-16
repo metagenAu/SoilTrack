@@ -47,7 +47,7 @@ export default async function LandingPage() {
           height: 100vh;
           display: flex;
           flex-direction: column;
-          font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+          font-family: var(--font-sans), system-ui, sans-serif;
           background: #0088CC;
           color: #fff;
           overflow: hidden;
@@ -167,7 +167,7 @@ export default async function LandingPage() {
         /* ═══ HEADLINE ═══ */
         .landing-h1 {
           font-size: clamp(36px, 5vw, 72px);
-          font-weight: 800;
+          font-weight: 700;
           line-height: 1.08;
           letter-spacing: -2px;
           color: #fff;
@@ -178,11 +178,11 @@ export default async function LandingPage() {
         .landing-h1 .l { display: block; }
         .landing-h1 .accent {
           color: rgba(255,255,255,0.5);
-          font-weight: 300;
+          font-weight: 400;
         }
         .landing-h1 .dot {
           color: #7DF9C1;
-          font-weight: 800;
+          font-weight: 700;
         }
 
         /* ═══ LEAD ═══ */
