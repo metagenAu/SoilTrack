@@ -112,7 +112,7 @@ export default async function TrialDetailPage({
           <DataBadge label="Chemistry" hasData={dataCoverage.soilChemistry} />
           <DataBadge label="Plot Data" hasData={dataCoverage.plotData} />
           <DataBadge label="Tissue" hasData={dataCoverage.tissueChemistry} />
-          <DataBadge label="Metadata" hasData={dataCoverage.sampleMetadata} />
+          <DataBadge label="Assay Results" hasData={dataCoverage.sampleMetadata} />
         </div>
       </div>
 

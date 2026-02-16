@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
         const targetTrialId = trialId
 
         if (!targetTrialId) {
-          results.push({ filename: file.name, type: 'Sample Metadata', status: 'error', detail: 'No trial context' })
+          results.push({ filename: file.name, type: 'Assay Results', status: 'error', detail: 'No trial context' })
           continue
         }
 
@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
           status: 'success', records_imported: rows.length,
         })
 
-        results.push({ filename: file.name, type: 'Sample Metadata', status: 'success', records: rows.length })
+        results.push({ filename: file.name, type: 'Assay Results', status: 'success', records: rows.length })
 
       } else if (classification === 'photo') {
         results.push({ filename: file.name, type: 'Photo', status: 'success', detail: 'Skipped (photo storage not yet configured)' })

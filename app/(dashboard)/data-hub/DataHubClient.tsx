@@ -68,7 +68,7 @@ export default function DataHubClient({ trials, uploadLog }: DataHubClientProps)
             <p className="pl-4">Soil Chemistry Data.csv</p>
             <p className="pl-4">Plot Data.csv</p>
             <p className="pl-4">Tissue Chemistry Data.xlsx</p>
-            <p className="pl-4">Sample Metadata.csv</p>
+            <p className="pl-4">Assay Results.csv</p>
             <p className="pl-4">Photos/</p>
           </div>
         </div>

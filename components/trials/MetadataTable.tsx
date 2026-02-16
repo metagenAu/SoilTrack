@@ -38,8 +38,8 @@ export default function MetadataTable({ metadata }: { metadata: MetadataEntry[] 
   if (metadata.length === 0) {
     return (
       <div className="text-center py-8 text-brand-grey-1">
-        <p className="text-sm">No sample metadata uploaded yet.</p>
-        <p className="text-xs mt-1">Upload metadata via the Data Hub or API.</p>
+        <p className="text-sm">No assay results uploaded yet.</p>
+        <p className="text-xs mt-1">Upload assay data (e.g. soil nitrate, fungal diversity) via the Data Hub or API.</p>
       </div>
     )
   }

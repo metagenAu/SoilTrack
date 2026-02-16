@@ -8,7 +8,7 @@ import BoxPlotChart from '@/components/analysis/BoxPlotChart'
 import BarChartWithSE from '@/components/analysis/BarChartWithSE'
 
 const DATA_SOURCES = [
-  { value: 'sampleMetadata', label: 'Sample Metadata' },
+  { value: 'sampleMetadata', label: 'Assay Results' },
   { value: 'soilChemistry', label: 'Soil Chemistry' },
   { value: 'tissueChemistry', label: 'Tissue Chemistry' },
   { value: 'plotData', label: 'Plot Data' },
