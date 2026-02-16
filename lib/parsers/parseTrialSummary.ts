@@ -50,7 +50,7 @@ export function parseTrialSummary(buffer: ArrayBuffer): TrialSummaryResult {
     const label = String(row[0] || '').trim().toLowerCase()
     const value = row[1] !== undefined ? String(row[1]).trim() : ''
 
-    if (label === 'trial') metadata.id = value
+    if (label === 'trial' || label === 'trial id' || label === 'trial no' || label === 'trial no.' || label === 'trial number' || label === 'trial code') metadata.id = value
     else if (label === 'name') metadata.name = value
     else if (label === 'location') metadata.location = value
     else if (label === 'gps') metadata.gps = value

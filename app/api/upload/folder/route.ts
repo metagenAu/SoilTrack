@@ -71,6 +71,17 @@ export async function POST(request: NextRequest) {
         // Trial summary has its own dedicated parser (Excel workbook)
         const buffer = await file.arrayBuffer()
         const parsed = parseTrialSummary(buffer)
+
+        if (!parsed.metadata.id) {
+          results.push({
+            filename,
+            type: typeLabel,
+            status: 'error',
+            detail: 'Could not find a Trial ID in the workbook — check the "Trial" row exists and has a value',
+          })
+          continue
+        }
+
         trialId = parsed.metadata.id
 
         const { error: trialError } = await supabase
