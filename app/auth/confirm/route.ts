@@ -30,8 +30,13 @@ export async function GET(request: Request) {
       }
       return NextResponse.redirect(`${origin}${isInvite ? '/reset-password' : next}`)
     }
+    const msg = error.message || 'Could not verify invitation'
+    console.error('[auth/confirm] OTP verification failed:', error.message, error.status)
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(msg)}`
+    )
   }
 
-  // If verification fails, redirect to login with an error
-  return NextResponse.redirect(`${origin}/login?error=Could+not+verify+invitation`)
+  // No token_hash or type — nothing to verify
+  return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent('Missing verification parameters')}`)
 }

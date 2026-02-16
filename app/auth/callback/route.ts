@@ -30,6 +30,12 @@ export async function GET(request: Request) {
       }
       return NextResponse.redirect(`${origin}${isInvite ? '/reset-password' : next}`)
     }
+    // Code exchange failed — provide a meaningful error
+    const msg = error.message || 'Invalid or expired link'
+    console.error('[auth/callback] Code exchange failed:', error.message, error.status)
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(msg)}`
+    )
   }
 
   // Handle token hash verification (invitations, email confirmations)
@@ -38,8 +44,13 @@ export async function GET(request: Request) {
     if (!error) {
       return NextResponse.redirect(`${origin}${type === 'invite' ? '/reset-password' : next}`)
     }
+    const msg = error.message || 'Invalid or expired link'
+    console.error('[auth/callback] OTP verification failed:', error.message, error.status)
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(msg)}`
+    )
   }
 
-  // If both methods fail, redirect to login with an error
-  return NextResponse.redirect(`${origin}/login`)
+  // No code or token_hash — nothing to process
+  return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent('Missing authentication parameters')}`)
 }
