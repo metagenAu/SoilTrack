@@ -109,10 +109,11 @@ export default async function LandingPage() {
         .landing-main {
           flex: 1;
           display: flex;
-          align-items: center;
+          align-items: flex-end;
           position: relative;
           z-index: 10;
           padding: 0 6vw;
+          padding-bottom: clamp(60px, 8vh, 100px);
         }
 
         .landing-hero {
@@ -172,22 +173,11 @@ export default async function LandingPage() {
           color: rgba(255,255,255,0.65);
           line-height: 1.7;
           letter-spacing: -0.01em;
-          margin-bottom: 16px;
+          margin-bottom: 36px;
           max-width: 480px;
           opacity: 0;
           animation: landing-fadeUp 0.8s ease forwards 0.55s;
         }
-        .landing-coming-soon {
-          font-size: clamp(11px, 1vw, 13px);
-          font-weight: 600;
-          letter-spacing: 3px;
-          text-transform: uppercase;
-          color: rgba(255,255,255,0.35);
-          margin-bottom: 40px;
-          opacity: 0;
-          animation: landing-fadeUp 0.8s ease forwards 0.65s;
-        }
-
         /* ═══ CTA ═══ */
         .landing-cta {
           opacity: 0;
@@ -310,11 +300,9 @@ export default async function LandingPage() {
             </h1>
 
             <p className="landing-lead">
-              Powering deeper understanding across agricultural trials
-              — from plot to portfolio.
+              Powering deeper understanding across agricultural trials,
+              from plot to portfolio.
             </p>
-
-            <p className="landing-coming-soon">More coming soon</p>
 
             <div className="landing-cta">
               <Link href="/login" className="landing-btn">Sign In</Link>
