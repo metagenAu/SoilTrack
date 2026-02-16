@@ -122,8 +122,9 @@ export default function FolderUpload() {
     setTrialId(null)
     setResults(prev => prev.map(r => ({ ...r, status: 'pending' as const, detail: undefined, records: undefined })))
 
-    // Classify files into three groups: unknown (skip), data files, photos
+    // Classify files into four groups: unknown (skip), trial summary, data files, photos
     const unknownIndices: number[] = []
+    const summaryIndices: number[] = []
     const dataFileIndices: number[] = []
     const photoIndices: number[] = []
 
@@ -133,6 +134,8 @@ export default function FolderUpload() {
         unknownIndices.push(i)
       } else if (classification === 'photo') {
         photoIndices.push(i)
+      } else if (classification === 'trialSummary') {
+        summaryIndices.push(i)
       } else {
         dataFileIndices.push(i)
       }
@@ -145,19 +148,19 @@ export default function FolderUpload() {
       ))
     }
 
-    // --- Step 1: Upload data files (CSVs / XLSX) in one small batch ---
-    // Use a local variable so the trialId is available immediately for Step 2
+    // Use a local variable so the trialId is available immediately for later steps
     let returnedTrialId: string | null = null
 
-    if (dataFileIndices.length > 0) {
-      const formData = new FormData()
-      for (const i of dataFileIndices) formData.append('files', files[i])
-
+    // --- Step 1: Upload Trial Summary FIRST to establish trial context ---
+    if (summaryIndices.length > 0) {
       setResults(prev => prev.map((r, idx) =>
-        dataFileIndices.includes(idx) ? { ...r, status: 'processing' as const } : r
+        summaryIndices.includes(idx) ? { ...r, status: 'processing' as const } : r
       ))
 
       try {
+        const formData = new FormData()
+        for (const i of summaryIndices) formData.append('files', files[i])
+
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 120_000)
 
@@ -184,64 +187,131 @@ export default function FolderUpload() {
           setTrialId(data.trialId)
         }
 
-        // Map server results back to UI — try by filename first, fall back to order
         const serverResults: FileResult[] = data.results || []
         const resultsByName = new Map<string, FileResult>()
-        for (const r of serverResults) {
-          resultsByName.set(r.filename, r)
-        }
+        for (const r of serverResults) resultsByName.set(r.filename, r)
 
-        setResults(prev => {
-          const updated = prev.map((r, idx) => {
-            if (!dataFileIndices.includes(idx)) return r
-
-            const serverResult = resultsByName.get(r.filename)
-            if (serverResult) {
-              return {
-                ...r,
-                status: serverResult.status as FileResult['status'],
-                detail: serverResult.detail,
-                records: serverResult.records,
-                rawUploadId: serverResult.rawUploadId,
-                unmappedColumns: serverResult.unmappedColumns,
-              }
+        setResults(prev => prev.map((r, idx) => {
+          if (!summaryIndices.includes(idx)) return r
+          const sr = resultsByName.get(r.filename)
+          if (sr) {
+            return {
+              ...r,
+              status: sr.status as FileResult['status'],
+              detail: sr.detail,
+              records: sr.records,
             }
-
-            const dataIdx = dataFileIndices.indexOf(idx)
-            if (dataIdx >= 0 && dataIdx < serverResults.length) {
-              const sr = serverResults[dataIdx]
-              return {
-                ...r,
-                status: sr.status as FileResult['status'],
-                detail: sr.detail,
-                records: sr.records,
-                rawUploadId: sr.rawUploadId,
-                unmappedColumns: sr.unmappedColumns,
-              }
-            }
-
-            return r
-          })
-
-          // Safety sweep: force any files still stuck in 'processing' to error
-          return updated.map(r =>
-            r.status === 'processing'
-              ? { ...r, status: 'error' as const, detail: 'No response received from server' }
-              : r
-          )
-        })
+          }
+          return { ...r, status: 'error' as const, detail: 'No response received from server' }
+        }))
       } catch (err: any) {
         const detail = err?.name === 'AbortError'
           ? 'Upload timed out — the server took too long to respond'
           : (err?.message || 'Upload failed')
 
         setResults(prev => prev.map((r, idx) =>
-          dataFileIndices.includes(idx) ? { ...r, status: 'error' as const, detail } : r
+          summaryIndices.includes(idx) ? { ...r, status: 'error' as const, detail } : r
         ))
       }
     }
 
-    // --- Step 2: Upload each photo individually with trialId ---
+    // --- Step 2: Upload remaining data files (CSVs / XLSX) with trialId ---
+    if (dataFileIndices.length > 0) {
+      if (!returnedTrialId) {
+        // No trial context from Step 1 — mark all data files as error
+        setResults(prev => prev.map((r, idx) =>
+          dataFileIndices.includes(idx)
+            ? { ...r, status: 'error' as const, detail: 'No trial context — upload a Trial Summary first' }
+            : r
+        ))
+      } else {
+        const formData = new FormData()
+        for (const i of dataFileIndices) formData.append('files', files[i])
+        formData.append('trialId', returnedTrialId)
+
+        setResults(prev => prev.map((r, idx) =>
+          dataFileIndices.includes(idx) ? { ...r, status: 'processing' as const } : r
+        ))
+
+        try {
+          const controller = new AbortController()
+          const timeout = setTimeout(() => controller.abort(), 120_000)
+
+          const res = await fetch('/api/upload/folder', {
+            method: 'POST',
+            body: formData,
+            signal: controller.signal,
+          })
+
+          clearTimeout(timeout)
+
+          if (!res.ok) {
+            let detail = `Server error (${res.status})`
+            try {
+              const body = await res.json()
+              if (body?.error) detail = body.error
+            } catch { /* body wasn't JSON */ }
+            throw new Error(detail)
+          }
+
+          const data = await res.json()
+
+          const serverResults: FileResult[] = data.results || []
+          const resultsByName = new Map<string, FileResult>()
+          for (const r of serverResults) resultsByName.set(r.filename, r)
+
+          setResults(prev => {
+            const updated = prev.map((r, idx) => {
+              if (!dataFileIndices.includes(idx)) return r
+
+              const serverResult = resultsByName.get(r.filename)
+              if (serverResult) {
+                return {
+                  ...r,
+                  status: serverResult.status as FileResult['status'],
+                  detail: serverResult.detail,
+                  records: serverResult.records,
+                  rawUploadId: serverResult.rawUploadId,
+                  unmappedColumns: serverResult.unmappedColumns,
+                }
+              }
+
+              const dataIdx = dataFileIndices.indexOf(idx)
+              if (dataIdx >= 0 && dataIdx < serverResults.length) {
+                const sr = serverResults[dataIdx]
+                return {
+                  ...r,
+                  status: sr.status as FileResult['status'],
+                  detail: sr.detail,
+                  records: sr.records,
+                  rawUploadId: sr.rawUploadId,
+                  unmappedColumns: sr.unmappedColumns,
+                }
+              }
+
+              return r
+            })
+
+            // Safety sweep: force any files still stuck in 'processing' to error
+            return updated.map(r =>
+              r.status === 'processing'
+                ? { ...r, status: 'error' as const, detail: 'No response received from server' }
+                : r
+            )
+          })
+        } catch (err: any) {
+          const detail = err?.name === 'AbortError'
+            ? 'Upload timed out — the server took too long to respond'
+            : (err?.message || 'Upload failed')
+
+          setResults(prev => prev.map((r, idx) =>
+            dataFileIndices.includes(idx) ? { ...r, status: 'error' as const, detail } : r
+          ))
+        }
+      }
+    }
+
+    // --- Step 3: Upload each photo individually with trialId ---
     if (photoIndices.length > 0) {
       if (!returnedTrialId) {
         // No trial context — mark all photos as error
