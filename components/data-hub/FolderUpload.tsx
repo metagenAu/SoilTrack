@@ -116,91 +116,74 @@ export default function FolderUpload() {
     setUploading(true)
     setResults(prev => prev.map(r => ({ ...r, status: 'pending' as const })))
 
-    let currentTrialId: string | null = null
+    // Handle photos/unknown client-side, batch data files for server
+    const dataFileIndices: number[] = []
+    const formData = new FormData()
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       const classification = classifyFile(file.name)
 
-      // Mark current file as processing
+      if (classification === 'photo') {
+        setResults(prev => prev.map((r, idx) =>
+          idx === i ? {
+            ...r,
+            status: 'success' as const,
+            detail: 'Skipped (photo storage not yet configured)',
+          } : r
+        ))
+      } else if (classification === 'unknown') {
+        setResults(prev => prev.map((r, idx) =>
+          idx === i ? {
+            ...r,
+            status: 'success' as const,
+            detail: 'Skipped — not a recognised data file',
+          } : r
+        ))
+      } else {
+        dataFileIndices.push(i)
+        formData.append('files', file)
+      }
+    }
+
+    // Upload all data files in one request so the server handles trial context
+    if (dataFileIndices.length > 0) {
       setResults(prev => prev.map((r, idx) =>
-        idx === i ? { ...r, status: 'processing' as const } : r
+        dataFileIndices.includes(idx) ? { ...r, status: 'processing' as const } : r
       ))
 
       try {
-        if (classification === 'trialSummary') {
-          // Upload trial summary via folder route to create/upsert the trial
-          const formData = new FormData()
-          formData.append('files', file)
+        const res = await fetch('/api/upload/folder', {
+          method: 'POST',
+          body: formData,
+        })
 
-          const res = await fetch('/api/upload/folder', {
-            method: 'POST',
-            body: formData,
-          })
+        if (!res.ok) throw new Error(`Server error (${res.status})`)
 
-          if (!res.ok) throw new Error(`Server error (${res.status})`)
+        const data = await res.json()
+        if (data.trialId) setTrialId(data.trialId)
 
-          const data = await res.json()
-          if (data.trialId) currentTrialId = data.trialId
-
-          const result = data.results?.[0]
-          setResults(prev => prev.map((r, idx) =>
-            idx === i ? {
-              ...r,
-              status: result?.status || 'success',
-              detail: result?.detail,
-              records: result?.records,
-            } : r
-          ))
-
-        } else if (classification === 'photo' || classification === 'unknown') {
-          setResults(prev => prev.map((r, idx) =>
-            idx === i ? {
-              ...r,
-              status: 'success' as const,
-              detail: classification === 'photo'
-                ? 'Skipped (photo storage not yet configured)'
-                : 'Skipped — not a recognised data file',
-            } : r
-          ))
-
-        } else {
-          if (!currentTrialId) {
-            setResults(prev => prev.map((r, idx) =>
-              idx === i ? {
-                ...r,
-                status: 'error' as const,
-                detail: 'No trial context — include a Trial Summary file',
-              } : r
-            ))
-            continue
-          }
-
-          const formData = new FormData()
-          formData.append('file', file)
-          formData.append('trialId', currentTrialId)
-          formData.append('fileType', 'auto')
-
-          const res = await fetch('/api/upload/single', {
-            method: 'POST',
-            body: formData,
-          })
-
-          if (!res.ok) throw new Error(`Server error (${res.status})`)
-
-          const data = await res.json()
-          setResults(prev => prev.map((r, idx) =>
-            idx === i ? {
-              ...r,
-              status: data.status || 'success',
-              detail: data.detail,
-              records: data.records,
-            } : r
-          ))
+        // Map server results back to UI by filename
+        const resultsByName = new Map<string, FileResult>()
+        for (const r of (data.results || [])) {
+          resultsByName.set(r.filename, r)
         }
+
+        setResults(prev => prev.map(r => {
+          const serverResult = resultsByName.get(r.filename)
+          if (serverResult) {
+            return {
+              ...r,
+              status: serverResult.status as 'success' | 'error',
+              detail: serverResult.detail,
+              records: serverResult.records,
+            }
+          }
+          return r
+        }))
       } catch (err: any) {
         setResults(prev => prev.map((r, idx) =>
-          idx === i ? {
+          dataFileIndices.includes(idx) ? {
             ...r,
             status: 'error' as const,
             detail: err?.message || 'Upload failed',
@@ -209,7 +192,6 @@ export default function FolderUpload() {
       }
     }
 
-    if (currentTrialId) setTrialId(currentTrialId)
     setUploading(false)
   }
 
