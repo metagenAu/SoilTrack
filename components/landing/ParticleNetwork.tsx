@@ -85,7 +85,7 @@ export default function ParticleNetwork() {
         // Draw particle
         ctx.beginPath()
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(180, 200, 220, ${p.opacity})`
+        ctx.fillStyle = `rgba(255, 255, 255, ${p.opacity})`
         ctx.fill()
       }
 
@@ -100,7 +100,7 @@ export default function ParticleNetwork() {
             ctx.beginPath()
             ctx.moveTo(particles[i].x, particles[i].y)
             ctx.lineTo(particles[j].x, particles[j].y)
-            ctx.strokeStyle = `rgba(140, 160, 180, ${alpha})`
+            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`
             ctx.lineWidth = 0.5
             ctx.stroke()
           }

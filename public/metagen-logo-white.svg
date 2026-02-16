@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 50" fill="white">
+  <!-- M icon box -->
+  <rect x="0" y="4" width="42" height="42" rx="8" fill="white"/>
+  <text x="21" y="33" font-family="system-ui, sans-serif" font-size="24" font-weight="700" fill="#0077B6" text-anchor="middle">M</text>
+
+  <!-- metagen wordmark -->
+  <text x="54" y="30" font-family="system-ui, sans-serif" font-size="28" font-weight="700" fill="white" letter-spacing="-0.5">meta</text>
+  <text x="131" y="30" font-family="system-ui, sans-serif" font-size="28" font-weight="300" fill="white" letter-spacing="-0.5">gen</text>
+
+  <!-- AUSTRALIA -->
+  <text x="54" y="46" font-family="system-ui, sans-serif" font-size="10" font-weight="500" fill="rgba(255,255,255,0.5)" letter-spacing="3.5">AUSTRALIA</text>
+</svg>
