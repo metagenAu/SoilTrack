@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     }
 
     // All data types go through the pipeline
-    const isExcel = classification === 'tissueChemistry'
+    const isExcel = /\.xlsx?$/i.test(file.name || '')
     const content = isExcel ? await file.arrayBuffer() : await file.text()
 
     const extraDefaults: Record<string, any> = {}
@@ -83,17 +83,28 @@ export async function POST(request: NextRequest) {
       extraDefaults.assay_type = (formData.get('assayType') as string) || 'general'
     }
 
+    const result = await runPipeline(
+      supabase,
+      trialId,
+      classification,
+      file.name || 'unnamed',
+      content,
+      isExcel,
+      { extraDefaults },
+    )
+
     try {
       await supabase.from('upload_log').insert({
         trial_id: trialId,
         filename: file.name,
         file_type: classification,
-        status: 'success',
-        records_imported: records,
+        status: result.status === 'success' ? 'success' : 'error',
+        detail: result.detail,
+        records_imported: result.records,
       })
     } catch { /* logging is best-effort */ }
 
-    return NextResponse.json({ status: 'success', detail: `Imported successfully`, records })
+    return NextResponse.json(result)
   } catch (err: any) {
     try {
       await supabase.from('upload_log').insert({

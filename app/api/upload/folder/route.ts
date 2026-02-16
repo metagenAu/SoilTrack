@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { classifyFile } from '@/lib/parsers/classify'
+import { classifyFile, type FileClassification } from '@/lib/parsers/classify'
 import { parseTrialSummary } from '@/lib/parsers/parseTrialSummary'
 import { runPipeline } from '@/lib/upload-pipeline'
 
 export const maxDuration = 60
+
+const TYPE_LABELS: Record<FileClassification, string> = {
+  trialSummary: 'Trial Summary',
+  soilHealth: 'Soil Health',
+  soilChemistry: 'Soil Chemistry',
+  plotData: 'Plot Data',
+  tissueChemistry: 'Tissue Chemistry',
+  sampleMetadata: 'Assay Results',
+  photo: 'Photo',
+  unknown: 'Unknown',
+}
 
 interface FileResult {
   filename: string
@@ -51,13 +62,14 @@ export async function POST(request: NextRequest) {
     try {
       const filename = file.name || 'unnamed'
       const classification = classifyFile(filename)
+      const typeLabel = TYPE_LABELS[classification]
 
       if (classification === 'trialSummary') {
+        // Trial summary has its own dedicated parser (Excel workbook)
         const buffer = await file.arrayBuffer()
         const parsed = parseTrialSummary(buffer)
         trialId = parsed.metadata.id
 
-        // Upsert trial
         const { error: trialError } = await supabase
           .from('trials')
           .upsert({
@@ -77,7 +89,6 @@ export async function POST(request: NextRequest) {
 
         if (trialError) throw trialError
 
-        // Insert treatments
         if (parsed.treatments.length > 0) {
           await supabase.from('treatments').delete().eq('trial_id', parsed.metadata.id)
           const { error: trtError } = await supabase.from('treatments').insert(
@@ -97,13 +108,12 @@ export async function POST(request: NextRequest) {
 
         results.push({
           filename,
-          type: 'Trial Summary',
+          type: typeLabel,
           status: 'success',
           detail: `Trial ${parsed.metadata.id} created/updated`,
           records: parsed.treatments.length,
         })
 
-        // Log (best-effort, don't let logging errors break the upload)
         try {
           await supabase.from('upload_log').insert({
             trial_id: parsed.metadata.id,
@@ -115,147 +125,14 @@ export async function POST(request: NextRequest) {
           })
         } catch { /* logging is best-effort */ }
 
-      } else if (classification === 'soilHealth') {
-        const text = await file.text()
-        const rows = parseSoilHealth(text)
-        const targetTrialId = trialId
-
-        if (!targetTrialId) {
-          results.push({ filename, type: 'Soil Health', status: 'error', detail: 'No trial context — upload a Trial Summary first' })
-          continue
-        }
-
-        const { error } = await supabase.from('soil_health_samples').insert(
-          rows.map(r => ({ trial_id: targetTrialId, ...r }))
-        )
-        if (error) throw error
-
-        await supabase.from('trial_data_files').upsert({
-          trial_id: targetTrialId, file_type: 'soilHealth', has_data: true, last_updated: new Date().toISOString(),
-        })
-
-        try {
-          await supabase.from('upload_log').insert({
-            trial_id: targetTrialId, filename, file_type: 'soilHealth',
-            status: 'success', records_imported: rows.length,
-          })
-        } catch { /* logging is best-effort */ }
-
-        results.push({ filename, type: 'Soil Health', status: 'success', records: rows.length })
-
-      } else if (classification === 'soilChemistry') {
-        const text = await file.text()
-        const rows = parseSoilChemistry(text)
-        const targetTrialId = trialId
-
-        if (!targetTrialId) {
-          results.push({ filename, type: 'Soil Chemistry', status: 'error', detail: 'No trial context — upload a Trial Summary first' })
-          continue
-        }
-
-        const { error } = await supabase.from('soil_chemistry').insert(
-          rows.map(r => ({ trial_id: targetTrialId, ...r }))
-        )
-        if (error) throw error
-
-        await supabase.from('trial_data_files').upsert({
-          trial_id: targetTrialId, file_type: 'soilChemistry', has_data: true, last_updated: new Date().toISOString(),
-        })
-
-        try {
-          await supabase.from('upload_log').insert({
-            trial_id: targetTrialId, filename, file_type: 'soilChemistry',
-            status: 'success', records_imported: rows.length,
-          })
-        } catch { /* logging is best-effort */ }
-
-        results.push({ filename, type: 'Soil Chemistry', status: 'success', records: rows.length })
-
-      } else if (classification === 'plotData') {
-        const text = await file.text()
-        const rows = parsePlotData(text)
-        const targetTrialId = trialId
-
-        if (!targetTrialId) {
-          results.push({ filename, type: 'Plot Data', status: 'error', detail: 'No trial context — upload a Trial Summary first' })
-          continue
-        }
-
-        const { error } = await supabase.from('plot_data').insert(
-          rows.map(r => ({ trial_id: targetTrialId, ...r }))
-        )
-        if (error) throw error
-
-        await supabase.from('trial_data_files').upsert({
-          trial_id: targetTrialId, file_type: 'plotData', has_data: true, last_updated: new Date().toISOString(),
-        })
-
-        try {
-          await supabase.from('upload_log').insert({
-            trial_id: targetTrialId, filename, file_type: 'plotData',
-            status: 'success', records_imported: rows.length,
-          })
-        } catch { /* logging is best-effort */ }
-
-        results.push({ filename, type: 'Plot Data', status: 'success', records: rows.length })
-
-      } else {
-        // Data files: soilHealth, soilChemistry, plotData, tissueChemistry, sampleMetadata
-        const targetTrialId = trialId
-        if (!targetTrialId) {
-          results.push({ filename, type: 'Tissue Chemistry', status: 'error', detail: 'No trial context — upload a Trial Summary first' })
-          continue
-        }
-
-        const { error } = await supabase.from('tissue_chemistry').insert(
-          rows.map(r => ({ trial_id: targetTrialId, ...r }))
-        )
-        if (error) throw error
-
-        await supabase.from('trial_data_files').upsert({
-          trial_id: targetTrialId, file_type: 'tissueChemistry', has_data: true, last_updated: new Date().toISOString(),
-        })
-
-        try {
-          await supabase.from('upload_log').insert({
-            trial_id: targetTrialId, filename, file_type: 'tissueChemistry',
-            status: 'success', records_imported: rows.length,
-          })
-        } catch { /* logging is best-effort */ }
-
-        results.push({ filename, type: 'Tissue Chemistry', status: 'success', records: rows.length })
-
-      } else if (classification === 'sampleMetadata') {
-        const text = await file.text()
-        const rows = parseSampleMetadata(text)
-        const targetTrialId = trialId
-
-        if (!targetTrialId) {
-          results.push({ filename, type: 'Assay Results', status: 'error', detail: 'No trial context — upload a Trial Summary first' })
-          continue
-        }
-
-        const { error } = await supabase.from('sample_metadata').insert(
-          rows.map(r => ({ trial_id: targetTrialId, ...r }))
-        )
-
-        try {
-          await supabase.from('upload_log').insert({
-            trial_id: targetTrialId, filename, file_type: 'sampleMetadata',
-            status: 'success', records_imported: rows.length,
-          })
-        } catch { /* logging is best-effort */ }
-
-        results.push({ filename, type: 'Assay Results', status: 'success', records: rows.length })
-
       } else if (classification === 'photo') {
         const targetTrialId = trialId
         if (!targetTrialId) {
-          results.push({ filename: file.name, type: 'Photo', status: 'error', detail: 'No trial context — upload a Trial Summary first' })
+          results.push({ filename, type: typeLabel, status: 'error', detail: 'No trial context — upload a Trial Summary first' })
           continue
         }
 
-        const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+        const ext = filename.split('.').pop()?.toLowerCase() || 'jpg'
         const storagePath = `${targetTrialId}/${crypto.randomUUID()}.${ext}`
 
         const buffer = await file.arrayBuffer()
@@ -270,7 +147,7 @@ export async function POST(request: NextRequest) {
 
         const { error: dbError } = await supabase.from('trial_photos').insert({
           trial_id: targetTrialId,
-          filename: file.name,
+          filename,
           storage_path: storagePath,
         })
 
@@ -280,16 +157,48 @@ export async function POST(request: NextRequest) {
           trial_id: targetTrialId, file_type: 'photo', has_data: true, last_updated: new Date().toISOString(),
         })
 
-        await supabase.from('upload_log').insert({
-          trial_id: targetTrialId, filename: file.name, file_type: 'photo',
-          status: 'success', records_imported: 1,
-        })
+        try {
+          await supabase.from('upload_log').insert({
+            trial_id: targetTrialId, filename, file_type: 'photo',
+            status: 'success', records_imported: 1,
+          })
+        } catch { /* logging is best-effort */ }
 
-        results.push({ filename: file.name, type: 'Photo', status: 'success', detail: 'Photo uploaded', records: 1 })
+        results.push({ filename, type: typeLabel, status: 'success', detail: 'Photo uploaded', records: 1 })
+
+      } else if (classification === 'unknown') {
+        results.push({ filename, type: typeLabel, status: 'success', detail: 'Skipped — not a recognised data file' })
 
       } else {
-        // Skip unrecognized files silently (e.g. READMEs, system files)
-        results.push({ filename, type: 'Unknown', status: 'success', detail: 'Skipped — not a recognised data file' })
+        // Data files (soilHealth, soilChemistry, plotData, tissueChemistry, sampleMetadata)
+        // All handled by the generic upload pipeline
+        const targetTrialId = trialId
+        if (!targetTrialId) {
+          results.push({ filename, type: typeLabel, status: 'error', detail: 'No trial context — upload a Trial Summary first' })
+          continue
+        }
+
+        const isExcel = /\.xlsx?$/i.test(filename)
+        const content = isExcel ? await file.arrayBuffer() : await file.text()
+
+        const pipelineResult = await runPipeline(
+          supabase,
+          targetTrialId,
+          classification,
+          filename,
+          content,
+          isExcel,
+        )
+
+        results.push({
+          filename,
+          type: typeLabel,
+          status: pipelineResult.status,
+          detail: pipelineResult.detail,
+          records: pipelineResult.records,
+          rawUploadId: pipelineResult.rawUploadId,
+          unmappedColumns: pipelineResult.unmappedColumns,
+        })
       }
     } catch (err: any) {
       const filename = file.name || 'unnamed'
@@ -297,7 +206,7 @@ export async function POST(request: NextRequest) {
 
       results.push({
         filename,
-        type: classification,
+        type: TYPE_LABELS[classification],
         status: 'error',
         detail: err?.message || 'Processing failed',
       })

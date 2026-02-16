@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Button from '@/components/ui/Button'
 
@@ -11,7 +11,12 @@ export default function ResetPasswordPage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
-  const supabase = createClient()
+  // Lazy-init: avoids calling createClient() during build-time prerender
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null)
+  function getSupabase() {
+    if (!supabaseRef.current) supabaseRef.current = createClient()
+    return supabaseRef.current
+  }
 
   async function handleReset(e: React.FormEvent) {
     e.preventDefault()
@@ -29,7 +34,7 @@ export default function ResetPasswordPage() {
     }
 
     setLoading(true)
-    const { error } = await supabase.auth.updateUser({ password })
+    const { error } = await getSupabase().auth.updateUser({ password })
     if (error) {
       setError(error.message)
     } else {

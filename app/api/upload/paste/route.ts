@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: 'error', detail: err?.message || 'Failed to read request data' }, { status: 400 })
   }
 
-  const { trialId, dataType, csvText } = body
+  const { trialId, dataType, csvText, assayType } = body
 
   if (!trialId || !dataType || !csvText) {
     return NextResponse.json({ status: 'error', detail: 'Missing required fields' }, { status: 400 })
@@ -27,18 +27,28 @@ export async function POST(request: NextRequest) {
       extraDefaults.assay_type = assayType || 'general'
     }
 
+    const result = await runPipeline(
+      supabase,
+      trialId,
+      dataType,
+      'paste-import',
+      csvText,
+      false,
+      { extraDefaults },
+    )
+
     try {
       await supabase.from('upload_log').insert({
         trial_id: trialId,
         filename: 'paste-import',
         file_type: dataType,
-        status: 'success',
-        detail: 'Pasted CSV data',
-        records_imported: records,
+        status: result.status === 'success' ? 'success' : 'error',
+        detail: result.detail || 'Pasted CSV data',
+        records_imported: result.records,
       })
     } catch { /* logging is best-effort */ }
 
-    return NextResponse.json({ status: 'success', detail: `Imported ${records} records`, records })
+    return NextResponse.json(result)
   } catch (err: any) {
     try {
       await supabase.from('upload_log').insert({
