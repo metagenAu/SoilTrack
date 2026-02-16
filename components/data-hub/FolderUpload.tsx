@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { FolderUp, FileText, CheckCircle, XCircle, Loader2, Clock, AlertTriangle } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import ColumnReview, { type ReviewItem } from './ColumnReview'
@@ -97,6 +97,7 @@ export default function FolderUpload() {
   const [trialId, setTrialId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
+  const [reviewStartIndex, setReviewStartIndex] = useState(0)
 
   const handleFiles = useCallback((fileArr: File[]) => {
     // Sort so trial summary comes first (needed for processing order)
@@ -201,9 +202,9 @@ export default function FolderUpload() {
     setUploading(false)
   }
 
-  /** Collect all needs_review results into ReviewItem[] for the batch modal */
-  function getReviewItems(): ReviewItem[] {
-    return results
+  /** All needs_review results as ReviewItem[] for the batch modal */
+  const reviewItems = useMemo<ReviewItem[]>(() =>
+    results
       .filter(r => r.status === 'needs_review' && r.rawUploadId && r.unmappedColumns)
       .map(r => ({
         rawUploadId: r.rawUploadId!,
@@ -215,8 +216,9 @@ export default function FolderUpload() {
                   r.type === 'Assay Results' ? 'sampleMetadata' :
                   r.type,
         unmappedColumns: r.unmappedColumns!,
-      }))
-  }
+      })),
+    [results]
+  )
 
   function handleReviewComplete(batchResults: { rawUploadId: string; status: string; records?: number; detail?: string }[]) {
     const resultMap = new Map(batchResults.map(r => [r.rawUploadId, r]))
@@ -309,7 +311,11 @@ export default function FolderUpload() {
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => setReviewOpen(true)}
+                    onClick={() => {
+                      const idx = reviewItems.findIndex(item => item.rawUploadId === r.rawUploadId)
+                      setReviewStartIndex(idx >= 0 ? idx : 0)
+                      setReviewOpen(true)
+                    }}
                   >
                     Review
                   </Button>
@@ -319,13 +325,13 @@ export default function FolderUpload() {
           </div>
 
           {/* Batch review banner */}
-          {results.filter(r => r.status === 'needs_review').length > 0 && (
+          {reviewItems.length > 0 && (
             <div className="mt-3 flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
               <AlertTriangle size={16} className="text-amber-600 flex-shrink-0" />
               <p className="text-sm text-amber-800 flex-1">
-                {results.filter(r => r.status === 'needs_review').length} file{results.filter(r => r.status === 'needs_review').length > 1 ? 's' : ''} need column mapping review
+                {reviewItems.length} file{reviewItems.length > 1 ? 's' : ''} need column mapping review
               </p>
-              <Button size="sm" onClick={() => setReviewOpen(true)}>
+              <Button size="sm" onClick={() => { setReviewStartIndex(0); setReviewOpen(true) }}>
                 Review All
               </Button>
             </div>
@@ -345,11 +351,12 @@ export default function FolderUpload() {
       )}
 
       {/* Column review modal — batch mode for all needs_review files */}
-      {reviewOpen && getReviewItems().length > 0 && (
+      {reviewOpen && reviewItems.length > 0 && (
         <ColumnReview
           open={reviewOpen}
           onClose={() => setReviewOpen(false)}
-          items={getReviewItems()}
+          items={reviewItems}
+          initialStep={reviewStartIndex}
           onComplete={handleReviewComplete}
         />
       )}

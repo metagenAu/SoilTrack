@@ -77,6 +77,8 @@ interface ColumnReviewProps {
   onClose: () => void
   /** One or more files to review in a single modal flow */
   items: ReviewItem[]
+  /** Which file tab to start on (default 0) */
+  initialStep?: number
   onComplete: (results: { rawUploadId: string; status: string; records?: number; detail?: string }[]) => void
 }
 
@@ -84,6 +86,7 @@ export default function ColumnReview({
   open,
   onClose,
   items,
+  initialStep = 0,
   onComplete,
 }: ColumnReviewProps) {
   // Per-file mappings: { rawUploadId: { colName: dbField } }
@@ -98,7 +101,7 @@ export default function ColumnReview({
     return init
   })
   const [submitting, setSubmitting] = useState(false)
-  const [currentStep, setCurrentStep] = useState(0)
+  const [currentStep, setCurrentStep] = useState(initialStep)
 
   const currentItem = items[currentStep]
   const fieldOptions = currentItem ? (TARGET_FIELDS[currentItem.fileType]?.fields || []) : []
@@ -131,7 +134,7 @@ export default function ColumnReview({
           }),
         })
         const data = await res.json()
-        results.push({ rawUploadId: item.rawUploadId, ...data })
+        results.push({ ...data, rawUploadId: item.rawUploadId })
       } catch {
         results.push({ rawUploadId: item.rawUploadId, status: 'error', detail: 'Failed to submit' })
       }
@@ -153,6 +156,7 @@ export default function ColumnReview({
               <button
                 key={item.rawUploadId}
                 onClick={() => setCurrentStep(i)}
+                disabled={submitting}
                 className={cn(
                   'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors',
                   i === currentStep
@@ -214,35 +218,33 @@ export default function ColumnReview({
             {items.length > 1 && `File ${currentStep + 1} of ${items.length}`}
           </div>
           <div className="flex gap-2">
+            <Button variant="secondary" onClick={onClose} disabled={submitting}>
+              Cancel
+            </Button>
             {items.length > 1 && currentStep > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => setCurrentStep(s => s - 1)}>
+              <Button variant="ghost" size="sm" onClick={() => setCurrentStep(s => s - 1)} disabled={submitting}>
                 Previous
               </Button>
             )}
             {items.length > 1 && !isLastStep && (
-              <Button variant="secondary" size="sm" onClick={() => setCurrentStep(s => s + 1)}>
+              <Button variant="secondary" size="sm" onClick={() => setCurrentStep(s => s + 1)} disabled={submitting}>
                 Next File
               </Button>
             )}
             {isLastStep && (
-              <>
-                <Button variant="secondary" onClick={onClose} disabled={submitting}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSubmitAll} disabled={submitting}>
-                  {submitting ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" />
-                      Processing {items.length > 1 ? `${items.length} files` : ''}...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle size={14} />
-                      Apply {items.length > 1 ? `All ${items.length} Mappings` : 'Mappings'}
-                    </>
-                  )}
-                </Button>
-              </>
+              <Button onClick={handleSubmitAll} disabled={submitting}>
+                {submitting ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Processing {items.length > 1 ? `${items.length} files` : ''}...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={14} />
+                    Apply {items.length > 1 ? `All ${items.length} Mappings` : 'Mappings'}
+                  </>
+                )}
+              </Button>
             )}
           </div>
         </div>
