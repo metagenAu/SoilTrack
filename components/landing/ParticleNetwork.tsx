@@ -23,9 +23,9 @@ export default function ParticleNetwork() {
 
     let animId: number
     let particles: Particle[] = []
-    const PARTICLE_COUNT = 80
-    const CONNECTION_DIST = 150
-    const MOUSE_DIST = 200
+    const PARTICLE_COUNT = 45
+    const CONNECTION_DIST = 130
+    const MOUSE_DIST = 160
 
     const mouse = { x: -1000, y: -1000 }
 
@@ -45,10 +45,10 @@ export default function ParticleNetwork() {
         particles.push({
           x: Math.random() * w,
           y: Math.random() * h,
-          vx: (Math.random() - 0.5) * 0.4,
-          vy: (Math.random() - 0.5) * 0.4,
-          radius: Math.random() * 1.5 + 0.5,
-          opacity: Math.random() * 0.5 + 0.1,
+          vx: (Math.random() - 0.5) * 0.25,
+          vy: (Math.random() - 0.5) * 0.25,
+          radius: Math.random() * 1 + 0.3,
+          opacity: Math.random() * 0.15 + 0.03,
         })
       }
     }
@@ -85,7 +85,7 @@ export default function ParticleNetwork() {
         // Draw particle
         ctx.beginPath()
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(153, 240, 250, ${p.opacity})`
+        ctx.fillStyle = `rgba(180, 200, 220, ${p.opacity})`
         ctx.fill()
       }
 
@@ -96,11 +96,11 @@ export default function ParticleNetwork() {
           const dy = particles[i].y - particles[j].y
           const dist = Math.sqrt(dx * dx + dy * dy)
           if (dist < CONNECTION_DIST) {
-            const alpha = (1 - dist / CONNECTION_DIST) * 0.08
+            const alpha = (1 - dist / CONNECTION_DIST) * 0.04
             ctx.beginPath()
             ctx.moveTo(particles[i].x, particles[i].y)
             ctx.lineTo(particles[j].x, particles[j].y)
-            ctx.strokeStyle = `rgba(0, 139, 206, ${alpha})`
+            ctx.strokeStyle = `rgba(140, 160, 180, ${alpha})`
             ctx.lineWidth = 0.5
             ctx.stroke()
           }
@@ -113,11 +113,11 @@ export default function ParticleNetwork() {
         const dy = p.y - mouse.y
         const dist = Math.sqrt(dx * dx + dy * dy)
         if (dist < MOUSE_DIST) {
-          const alpha = (1 - dist / MOUSE_DIST) * 0.15
+          const alpha = (1 - dist / MOUSE_DIST) * 0.06
           ctx.beginPath()
           ctx.moveTo(p.x, p.y)
           ctx.lineTo(mouse.x, mouse.y)
-          ctx.strokeStyle = `rgba(0, 187, 126, ${alpha})`
+          ctx.strokeStyle = `rgba(140, 160, 180, ${alpha})`
           ctx.lineWidth = 0.5
           ctx.stroke()
         }
