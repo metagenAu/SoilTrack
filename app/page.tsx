@@ -157,33 +157,36 @@ export default async function LandingPage() {
 
         /* ═══ SIGNPOST ═══ */
         .landing-signpost {
-          margin-bottom: 32px;
+          margin-bottom: 36px;
           opacity: 0;
           animation: landing-fadeUp 0.8s ease forwards 0.2s;
         }
         .landing-sp-bold {
-          font-size: 11px;
-          font-weight: 600;
-          letter-spacing: 2.5px;
+          font-family: var(--font-display), system-ui, sans-serif;
+          font-size: clamp(20px, 2.5vw, 30px);
+          font-weight: 700;
+          letter-spacing: 3px;
           text-transform: uppercase;
-          color: rgba(255,255,255,0.45);
+          color: rgba(255,255,255,0.85);
         }
         .landing-sp-reg {
-          font-size: 11px;
+          font-family: var(--font-display), system-ui, sans-serif;
+          font-size: clamp(20px, 2.5vw, 30px);
           font-weight: 300;
-          letter-spacing: 2.5px;
+          letter-spacing: 3px;
           text-transform: uppercase;
-          color: rgba(255,255,255,0.18);
+          color: rgba(255,255,255,0.35);
         }
 
         /* ═══ HEADLINE ═══ */
         .landing-h1 {
-          font-size: clamp(34px, 5vw, 66px);
+          font-family: var(--font-display), system-ui, sans-serif;
+          font-size: clamp(28px, 4vw, 52px);
           font-weight: 300;
-          line-height: 1.15;
-          letter-spacing: -1.5px;
-          color: rgba(255,255,255,0.6);
-          margin-bottom: 28px;
+          line-height: 1.4;
+          letter-spacing: -0.5px;
+          color: rgba(255,255,255,0.45);
+          margin-bottom: 12px;
           opacity: 0;
           animation: landing-fadeUp 1s ease forwards 0.35s;
         }
@@ -194,7 +197,7 @@ export default async function LandingPage() {
         }
         .landing-h1 strong {
           font-weight: 700;
-          color: #fff;
+          color: rgba(255,255,255,0.85);
         }
         .landing-h1 .dot {
           color: #00BB7E;
@@ -203,20 +206,32 @@ export default async function LandingPage() {
 
         /* ═══ LEAD ═══ */
         .landing-lead {
-          font-size: clamp(13px, 1.3vw, 16px);
+          font-family: var(--font-display), system-ui, sans-serif;
+          font-size: clamp(14px, 1.4vw, 17px);
           font-weight: 400;
-          color: rgba(255,255,255,0.25);
-          line-height: 1.7;
+          color: rgba(255,255,255,0.3);
+          line-height: 1.8;
           letter-spacing: -0.01em;
-          margin-bottom: 40px;
+          margin-bottom: 16px;
           opacity: 0;
           animation: landing-fadeUp 0.8s ease forwards 0.55s;
+        }
+        .landing-coming-soon {
+          font-family: var(--font-display), system-ui, sans-serif;
+          font-size: clamp(11px, 1.1vw, 13px);
+          font-weight: 500;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          color: rgba(255,255,255,0.18);
+          margin-bottom: 36px;
+          opacity: 0;
+          animation: landing-fadeUp 0.8s ease forwards 0.65s;
         }
 
         /* ═══ CTA ═══ */
         .landing-cta {
           opacity: 0;
-          animation: landing-fadeUp 0.8s ease forwards 0.7s;
+          animation: landing-fadeUp 0.8s ease forwards 0.8s;
         }
         .landing-btn {
           position: relative;
@@ -349,17 +364,18 @@ export default async function LandingPage() {
             </div>
 
             <h1 className="landing-h1">
-              <span className="l">Novel, scalable</span>
-              <span className="l">trial management for</span>
+              <span className="l">Generating <strong>soil health insights</strong></span>
               <span className="indent">
-                <strong>soil health innovation<span className="dot">.</span></strong>
+                <strong>at scale<span className="dot">.</span></strong>
               </span>
             </h1>
 
             <p className="landing-lead">
-              An integrated platform to design, track and analyse<br />
-              field trials across every crop and region.
+              Powering deeper understanding across agricultural trials<br />
+              — from plot to portfolio.
             </p>
+
+            <p className="landing-coming-soon">More coming soon</p>
 
             <div className="landing-cta">
               <Link href="/login" className="landing-btn">Sign In</Link>
