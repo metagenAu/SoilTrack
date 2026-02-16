@@ -47,7 +47,7 @@ export default async function LandingPage() {
           height: 100vh;
           display: flex;
           flex-direction: column;
-          font-family: 'Inter', system-ui, sans-serif;
+          font-family: 'Space Grotesk', system-ui, sans-serif;
           background: #161F28;
           color: #fff;
           overflow: hidden;
