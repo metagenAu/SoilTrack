@@ -139,7 +139,7 @@ export default function PhotosTab({ photos: initialPhotos, trialId, supabaseUrl 
           {photos.map((photo) => (
             <div
               key={photo.id}
-              className="group relative aspect-square rounded-lg overflow-hidden bg-brand-grey-3 cursor-pointer border border-brand-grey-2 hover:border-meta-blue/50 transition-colors"
+              className="group relative aspect-square rounded-lg overflow-hidden bg-brand-grey-3 cursor-pointer border border-brand-grey-2 hover:border-brand-grey-1/50 transition-colors"
               onClick={() => setLightboxPhoto(photo)}
             >
               <img

@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @layer base {
   body {
@@ -12,11 +12,11 @@
 
 @layer components {
   .signpost-label {
-    @apply text-[11px] uppercase tracking-[1.2px] font-bold text-meta-blue;
+    @apply text-[11px] uppercase tracking-[1.2px] font-semibold text-brand-grey-1;
   }
 
   .page-title {
-    @apply text-[22px] font-bold text-brand-black leading-tight;
+    @apply text-[22px] font-semibold text-brand-black leading-tight tracking-tight;
   }
 
   .card {
@@ -24,6 +24,6 @@
   }
 
   .table-header {
-    @apply text-[11px] uppercase tracking-[0.8px] font-bold text-meta-blue;
+    @apply text-[11px] uppercase tracking-[0.8px] font-semibold text-brand-grey-1;
   }
 }

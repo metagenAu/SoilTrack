@@ -37,7 +37,7 @@ export default function DataHubClient({ trials, uploadLog }: DataHubClientProps)
                 className={cn(
                   'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
                   activeTab === tab.key
-                    ? 'bg-meta-blue text-white'
+                    ? 'bg-brand-black text-white'
                     : 'bg-white text-brand-black/70 border border-brand-grey-2 hover:bg-brand-grey-3'
                 )}
               >

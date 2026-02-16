@@ -40,30 +40,30 @@ export default function ResetPasswordPage() {
     } else {
       setMessage('Password updated successfully. Redirecting...')
       setTimeout(() => {
-        window.location.href = '/'
+        window.location.href = '/dashboard'
       }, 1500)
     }
     setLoading(false)
   }
 
   return (
-    <div className="min-h-screen bg-meta-blue flex items-center justify-center p-4">
+    <div className="min-h-screen bg-brand-black flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center mb-3">
-            <span className="text-meta-blue font-bold text-2xl">M</span>
+          <div className="w-14 h-14 rounded-lg bg-white/10 flex items-center justify-center mb-3">
+            <span className="text-white font-semibold text-2xl">M</span>
           </div>
           <div className="text-white text-center">
-            <span className="text-lg font-bold">meta</span>
-            <span className="text-lg font-normal">gen</span>
-            <sup className="text-xs ml-0.5">AUS</sup>
+            <span className="text-lg font-semibold">meta</span>
+            <span className="text-lg font-light">gen</span>
+            <sup className="text-xs ml-0.5 text-white/40">AUS</sup>
           </div>
-          <span className="text-white/60 text-xs uppercase tracking-[2px] mt-1">SoilTrack</span>
+          <span className="text-white/30 text-xs uppercase tracking-[2px] mt-1">SoilTrack</span>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-xl p-6 shadow-lg">
+        <div className="bg-white rounded-xl p-6">
           <h2 className="text-lg font-semibold text-brand-black mb-4 text-center">
             Set new password
           </h2>
@@ -77,7 +77,7 @@ export default function ResetPasswordPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-meta-blue"
+                className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-brand-black/30"
                 placeholder="••••••••"
               />
             </div>
@@ -90,7 +90,7 @@ export default function ResetPasswordPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 minLength={6}
-                className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-meta-blue"
+                className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-brand-black/30"
                 placeholder="••••••••"
               />
             </div>

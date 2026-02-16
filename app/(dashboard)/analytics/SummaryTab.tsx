@@ -72,11 +72,11 @@ export default function SummaryTab({
     <div>
       {/* Top-level stat cards */}
       <div className="grid grid-cols-5 gap-4 mb-6">
-        <StatCard label="TOTAL TRIALS" value={trials.length} borderColor="#004C97" />
-        <StatCard label="ACTIVE" value={stats.active.length} borderColor="#00BB7E" />
-        <StatCard label="COMPLETED" value={stats.completed.length} borderColor="#008BCE" />
-        <StatCard label="SOIL SAMPLES" value={totalSamples} borderColor="#006AC6" />
-        <StatCard label="CLIENTS" value={totalClients} borderColor="#009775" />
+        <StatCard label="TOTAL TRIALS" value={trials.length} borderColor="#B9BCBF" />
+        <StatCard label="ACTIVE" value={stats.active.length} borderColor="#B9BCBF" />
+        <StatCard label="COMPLETED" value={stats.completed.length} borderColor="#DCDDDF" />
+        <StatCard label="SOIL SAMPLES" value={totalSamples} borderColor="#B9BCBF" />
+        <StatCard label="CLIENTS" value={totalClients} borderColor="#DCDDDF" />
       </div>
 
       {/* Status overview bar */}
@@ -86,7 +86,7 @@ export default function SummaryTab({
           <div className="flex rounded-lg overflow-hidden h-8 mb-3">
             {stats.active.length > 0 && (
               <div
-                className="bg-green-lush flex items-center justify-center text-white text-xs font-medium"
+                className="bg-brand-black flex items-center justify-center text-white text-xs font-medium"
                 style={{ width: `${(stats.active.length / trials.length) * 100}%` }}
               >
                 {stats.active.length}
@@ -94,7 +94,7 @@ export default function SummaryTab({
             )}
             {stats.completed.length > 0 && (
               <div
-                className="bg-meta-blue flex items-center justify-center text-white text-xs font-medium"
+                className="bg-brand-grey-1 flex items-center justify-center text-white text-xs font-medium"
                 style={{ width: `${(stats.completed.length / trials.length) * 100}%` }}
               >
                 {stats.completed.length}
@@ -144,7 +144,7 @@ export default function SummaryTab({
                   <div className="flex rounded-full overflow-hidden h-5 bg-brand-grey-3">
                     {counts.active > 0 && (
                       <div
-                        className="bg-green-lush flex items-center justify-center text-white text-[10px] font-medium"
+                        className="bg-brand-black flex items-center justify-center text-white text-[10px] font-medium"
                         style={{ width: `${(counts.active / maxCropCount) * 100}%` }}
                       >
                         {counts.active}
@@ -152,7 +152,7 @@ export default function SummaryTab({
                     )}
                     {counts.completed > 0 && (
                       <div
-                        className="bg-meta-blue flex items-center justify-center text-white text-[10px] font-medium"
+                        className="bg-brand-grey-1 flex items-center justify-center text-white text-[10px] font-medium"
                         style={{ width: `${(counts.completed / maxCropCount) * 100}%` }}
                       >
                         {counts.completed}
@@ -183,7 +183,7 @@ export default function SummaryTab({
                   <div className="flex rounded-full overflow-hidden h-5 bg-brand-grey-3">
                     {counts.active > 0 && (
                       <div
-                        className="bg-green-lush flex items-center justify-center text-white text-[10px] font-medium"
+                        className="bg-brand-black flex items-center justify-center text-white text-[10px] font-medium"
                         style={{ width: `${(counts.active / maxYearCount) * 100}%` }}
                       >
                         {counts.active}
@@ -191,7 +191,7 @@ export default function SummaryTab({
                     )}
                     {counts.completed > 0 && (
                       <div
-                        className="bg-meta-blue flex items-center justify-center text-white text-[10px] font-medium"
+                        className="bg-brand-grey-1 flex items-center justify-center text-white text-[10px] font-medium"
                         style={{ width: `${(counts.completed / maxYearCount) * 100}%` }}
                       >
                         {counts.completed}
@@ -214,7 +214,7 @@ export default function SummaryTab({
               {stats.types.map(([type, count]) => (
                 <div key={type} className="flex items-center justify-between text-sm">
                   <span>{type}</span>
-                  <span className="font-mono font-medium text-meta-blue">{count}</span>
+                  <span className="font-mono font-medium text-brand-black/60">{count}</span>
                 </div>
               ))}
             </div>
@@ -231,7 +231,7 @@ export default function SummaryTab({
               {stats.locations.map(([location, count]) => (
                 <div key={location} className="flex items-center justify-between text-sm">
                   <span>{location}</span>
-                  <span className="font-mono font-medium text-meta-blue">{count}</span>
+                  <span className="font-mono font-medium text-brand-black/60">{count}</span>
                 </div>
               ))}
             </div>

@@ -52,8 +52,8 @@ export default function ManagementLog({ entries, trialId, onAdd }: ManagementLog
           {entries.map((entry, i) => (
             <div key={entry.id} className="flex gap-3">
               <div className="flex flex-col items-center">
-                <div className="w-7 h-7 rounded-full bg-meta-blue/10 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-bold text-meta-blue">{i + 1}</span>
+                <div className="w-7 h-7 rounded-full bg-brand-grey-3 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-semibold text-brand-black/50">{i + 1}</span>
                 </div>
                 {i < entries.length - 1 && (
                   <div className="w-px flex-1 bg-brand-grey-2 mt-1" />
@@ -80,7 +80,7 @@ export default function ManagementLog({ entries, trialId, onAdd }: ManagementLog
               onChange={(e) => setNewEntry(e.target.value)}
               required
               rows={3}
-              className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-meta-blue resize-none"
+              className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-brand-black/30 resize-none"
               placeholder="Describe the activity..."
             />
           </div>
@@ -90,7 +90,7 @@ export default function ManagementLog({ entries, trialId, onAdd }: ManagementLog
               type="date"
               value={newDate}
               onChange={(e) => setNewDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-meta-blue"
+              className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-brand-black/30"
             />
           </div>
           <div className="flex justify-end gap-2 pt-2">

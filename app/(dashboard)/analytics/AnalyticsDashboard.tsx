@@ -53,7 +53,7 @@ export default function AnalyticsDashboard({
               className={cn(
                 'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
                 activeTab === tab.key
-                  ? 'border-meta-blue text-meta-blue'
+                  ? 'border-brand-black text-brand-black'
                   : 'border-transparent text-brand-grey-1 hover:text-brand-black'
               )}
             >

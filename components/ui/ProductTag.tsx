@@ -1,11 +1,11 @@
 import { cn } from '@/lib/utils'
 
 const productStyles: Record<string, string> = {
-  Digestor: 'bg-green-lush/15 text-green-lush border-green-lush/30',
-  Transit: 'bg-meta-blue/15 text-meta-blue border-meta-blue/30',
-  CPD: 'bg-meta-true-blue/15 text-meta-true-blue border-meta-true-blue/30',
-  Control: 'bg-brand-grey-1/15 text-brand-grey-1 border-brand-grey-1/30',
-  'Digestor + Transit': 'bg-green-eco/15 text-green-eco border-green-eco/30',
+  Digestor: 'bg-green-lush/8 text-green-rich border-green-lush/15',
+  Transit: 'bg-meta-blue/8 text-meta-rich-blue border-meta-blue/15',
+  CPD: 'bg-meta-true-blue/8 text-meta-rich-blue border-meta-true-blue/15',
+  Control: 'bg-brand-grey-3 text-brand-black/50 border-brand-grey-2',
+  'Digestor + Transit': 'bg-green-eco/8 text-green-rich border-green-eco/15',
 }
 
 interface ProductTagProps {

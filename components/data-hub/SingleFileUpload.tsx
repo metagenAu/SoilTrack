@@ -96,7 +96,7 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
         <select
           value={selectedTrial}
           onChange={(e) => setSelectedTrial(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-meta-blue"
+          className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-brand-black/30"
         >
           <option value="">Select a trial...</option>
           {trials.map((t) => (
@@ -111,7 +111,7 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
         <select
           value={fileType}
           onChange={(e) => setFileType(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-meta-blue"
+          className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-brand-black/30"
         >
           {FILE_TYPES.map((ft) => (
             <option key={ft.value} value={ft.value}>{ft.label}</option>
@@ -130,7 +130,7 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
         }}
         className={cn(
           'border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer',
-          dragOver ? 'border-meta-blue bg-meta-blue/5' : 'border-brand-grey-2 hover:border-meta-blue/50'
+          dragOver ? 'border-brand-black/30 bg-brand-grey-3' : 'border-brand-grey-2 hover:border-brand-grey-1'
         )}
         onClick={() => {
           const input = document.createElement('input')

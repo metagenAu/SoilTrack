@@ -48,7 +48,7 @@ export default function TrialDetailTabs({
             className={cn(
               'px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
               activeTab === tab
-                ? 'border-meta-blue text-meta-blue'
+                ? 'border-brand-black text-brand-black'
                 : 'border-transparent text-brand-grey-1 hover:text-brand-black'
             )}
           >
@@ -113,12 +113,12 @@ export default function TrialDetailTabs({
           <div className="space-y-4">
             <p className="signpost-label">DATA COVERAGE</p>
             <div className="grid grid-cols-2 gap-3">
-              <StatCard label="SOIL SAMPLES" value={samples.length} borderColor="#00BB7E" />
-              <StatCard label="TREATMENTS" value={treatments.length} borderColor="#008BCE" />
-              <StatCard label="PLOT RECORDS" value={plots.length} borderColor="#006AC6" />
-              <StatCard label="ASSAY RESULTS" value={metadata.length} borderColor="#009775" />
-              <StatCard label="PHOTOS" value={photos.length} borderColor="#E67E22" />
-              <StatCard label="LOG ENTRIES" value={log.length} borderColor="#004C97" />
+              <StatCard label="SOIL SAMPLES" value={samples.length} borderColor="#B9BCBF" />
+              <StatCard label="TREATMENTS" value={treatments.length} borderColor="#DCDDDF" />
+              <StatCard label="PLOT RECORDS" value={plots.length} borderColor="#B9BCBF" />
+              <StatCard label="ASSAY RESULTS" value={metadata.length} borderColor="#DCDDDF" />
+              <StatCard label="PHOTOS" value={photos.length} borderColor="#B9BCBF" />
+              <StatCard label="LOG ENTRIES" value={log.length} borderColor="#DCDDDF" />
             </div>
           </div>
         </div>

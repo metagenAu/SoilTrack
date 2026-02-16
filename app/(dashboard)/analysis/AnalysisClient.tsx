@@ -97,7 +97,7 @@ export default function AnalysisClient({ trials, assayTypes }: AnalysisClientPro
             <select
               value={source}
               onChange={e => setSource(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-meta-blue"
+              className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-brand-black/30"
             >
               {DATA_SOURCES.map(ds => (
                 <option key={ds.value} value={ds.value}>{ds.label}</option>
@@ -111,7 +111,7 @@ export default function AnalysisClient({ trials, assayTypes }: AnalysisClientPro
             <select
               value={groupBy}
               onChange={e => setGroupBy(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-meta-blue"
+              className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-brand-black/30"
             >
               {GROUP_BY_OPTIONS.map(o => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -126,7 +126,7 @@ export default function AnalysisClient({ trials, assayTypes }: AnalysisClientPro
               <select
                 value={assayType}
                 onChange={e => setAssayType(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-meta-blue"
+                className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-brand-black/30"
               >
                 <option value="">All assay types</option>
                 {assayTypes.map(at => (
@@ -145,7 +145,7 @@ export default function AnalysisClient({ trials, assayTypes }: AnalysisClientPro
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                   chartType === 'bar'
-                    ? 'bg-meta-blue text-white'
+                    ? 'bg-brand-black text-white'
                     : 'bg-brand-grey-3 border border-brand-grey-2 text-brand-black/70 hover:bg-brand-grey-2'
                 )}
               >
@@ -157,7 +157,7 @@ export default function AnalysisClient({ trials, assayTypes }: AnalysisClientPro
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                   chartType === 'box'
-                    ? 'bg-meta-blue text-white'
+                    ? 'bg-brand-black text-white'
                     : 'bg-brand-grey-3 border border-brand-grey-2 text-brand-black/70 hover:bg-brand-grey-2'
                 )}
               >
@@ -179,7 +179,7 @@ export default function AnalysisClient({ trials, assayTypes }: AnalysisClientPro
                 className={cn(
                   'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
                   selectedTrials.includes(t.id)
-                    ? 'bg-meta-blue text-white'
+                    ? 'bg-brand-black text-white'
                     : 'bg-brand-grey-3 text-brand-black/70 hover:bg-brand-grey-2'
                 )}
               >

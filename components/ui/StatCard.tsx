@@ -14,7 +14,7 @@ export default function StatCard({ label, value, borderColor, className }: StatC
       style={borderColor ? { borderTopWidth: '3px', borderTopColor: borderColor } : undefined}
     >
       <p className="signpost-label mb-1">{label}</p>
-      <p className="text-2xl font-bold text-brand-black">{value}</p>
+      <p className="text-2xl font-semibold text-brand-black tracking-tight">{value}</p>
     </div>
   )
 }

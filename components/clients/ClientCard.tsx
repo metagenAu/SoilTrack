@@ -16,16 +16,16 @@ export default function ClientCard({ client }: ClientCardProps) {
   return (
     <Link
       href={`/clients/${client.id}`}
-      className="card hover:border-meta-blue/40 transition-colors group block"
+      className="card hover:border-brand-grey-1/50 transition-colors group block"
     >
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-meta-blue/10 flex items-center justify-center flex-shrink-0">
-          <span className="font-bold text-sm text-meta-blue">
+        <div className="w-10 h-10 rounded-full bg-brand-grey-3 flex items-center justify-center flex-shrink-0">
+          <span className="font-semibold text-sm text-brand-black/60">
             {client.name.charAt(0).toUpperCase()}
           </span>
         </div>
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-brand-black group-hover:text-meta-blue transition-colors">
+          <h3 className="text-sm font-semibold text-brand-black group-hover:text-brand-black/70 transition-colors">
             {client.name}
           </h3>
           <div className="flex items-center gap-3 text-xs text-brand-grey-1 mt-1">

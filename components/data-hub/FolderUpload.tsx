@@ -354,7 +354,7 @@ export default function FolderUpload() {
         }}
         className={cn(
           'border-2 border-dashed rounded-xl p-10 text-center transition-colors cursor-pointer',
-          dragOver ? 'border-meta-blue bg-meta-blue/5' : 'border-brand-grey-2 hover:border-meta-blue/50'
+          dragOver ? 'border-brand-black/30 bg-brand-grey-3' : 'border-brand-grey-2 hover:border-brand-grey-1'
         )}
         onClick={() => {
           const input = document.createElement('input')
@@ -404,7 +404,7 @@ export default function FolderUpload() {
               <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-brand-grey-3">
                 {r.status === 'success' && <CheckCircle size={16} className="text-green-lush flex-shrink-0" />}
                 {r.status === 'error' && <XCircle size={16} className="text-red-500 flex-shrink-0" />}
-                {r.status === 'processing' && <Loader2 size={16} className="text-meta-blue animate-spin flex-shrink-0" />}
+                {r.status === 'processing' && <Loader2 size={16} className="text-brand-black/50 animate-spin flex-shrink-0" />}
                 {r.status === 'pending' && <Clock size={16} className="text-brand-grey-1 flex-shrink-0" />}
                 {r.status === 'needs_review' && <AlertTriangle size={16} className="text-amber-600 flex-shrink-0" />}
                 <FileText size={14} className="text-brand-grey-1 flex-shrink-0" />
