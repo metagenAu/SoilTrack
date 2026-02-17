@@ -36,6 +36,12 @@ export interface ColumnMapConfig {
    * Soil Health → property, Chemistry → grower name, Plot → trial.
    */
   trialIdAliases?: string[]
+  /**
+   * Row fields that form the natural dedup key (excluding trial_id).
+   * Must match the columns in the corresponding unique index so that
+   * duplicate rows are collapsed before hitting the DB's ON CONFLICT clause.
+   */
+  naturalKeyFields: string[]
 }
 
 export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
@@ -54,6 +60,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
     ],
     valueColumns: [],
     trialIdAliases: ['property', 'farm', 'site'],
+    naturalKeyFields: ['sample_no', 'date', 'property', 'block'],
   },
 
   soilChemistry: {
@@ -69,6 +76,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
     extraIdentityAliases: ['property', 'farm', 'site'],
     unitPattern: /\(([^)]+)\)/,
     trialIdAliases: ['grower', 'grower name', 'grower_name'],
+    naturalKeyFields: ['barcode', 'sample_no', 'date', 'metric'],
   },
 
   plotData: {
@@ -87,6 +95,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
       { dbField: 'disease_score', aliases: ['disease', 'disease_score', 'disease score', 'diseasescore'], type: 'number' },
     ],
     trialIdAliases: ['trial', 'trial id', 'trial_id', 'trial no', 'trial no.', 'trial number', 'trial code'],
+    naturalKeyFields: ['plot', 'trt_number', 'rep'],
   },
 
   tissueChemistry: {
@@ -102,6 +111,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
     extraIdentityAliases: [],
     unitPattern: /\(([^)]+)\)/,
     trialIdAliases: ['grower', 'grower name', 'grower_name'],
+    naturalKeyFields: ['barcode', 'sample_no', 'date', 'tissue_type', 'metric'],
   },
 
   sampleMetadata: {
@@ -118,6 +128,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
     ],
     extraIdentityAliases: ['rep', 'replicate', 'property', 'farm', 'site'],
     unitPattern: /\(([^)]+)\)/,
+    naturalKeyFields: ['assay_type', 'barcode', 'sample_no', 'date', 'metric'],
   },
 }
 
