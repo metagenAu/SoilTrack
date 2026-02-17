@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
-import { FolderUp, FileText, CheckCircle, XCircle, Loader2, Clock, AlertTriangle, X } from 'lucide-react'
+import { FolderUp, FileText, CheckCircle, XCircle, Loader2, Clock, AlertTriangle, X, Info } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import ColumnReview, { type ReviewItem } from './ColumnReview'
 import { cn } from '@/lib/utils'
@@ -503,6 +503,14 @@ export default function FolderUpload() {
         </p>
         <p className="text-xs text-brand-grey-1">
           Expected: Trial Summary.xlsx, Soil Health Data.csv, Soil Chemistry Data.csv, Plot Data.csv
+        </p>
+      </div>
+
+      {/* Re-upload info note */}
+      <div className="mt-3 flex items-start gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200">
+        <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-blue-800">
+          Re-uploading to an existing trial? Matching rows will be updated, new rows will be added, and rows not in the new file will be kept.
         </p>
       </div>
 

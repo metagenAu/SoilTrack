@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { FileUp, CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { FileUp, CheckCircle, XCircle, Loader2, AlertTriangle, Info } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import ColumnReview from './ColumnReview'
 import { cn } from '@/lib/utils'
@@ -33,6 +33,24 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
   const [result, setResult] = useState<UploadResult | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
+  const [existingTypes, setExistingTypes] = useState<string[]>([])
+
+  // Check which data types already have data for the selected trial
+  useEffect(() => {
+    if (!selectedTrial) {
+      setExistingTypes([])
+      return
+    }
+    let cancelled = false
+    fetch(`/api/upload/check-existing?trialId=${encodeURIComponent(selectedTrial)}`)
+      .then(res => res.json())
+      .then(data => { if (!cancelled) setExistingTypes(data.fileTypes || []) })
+      .catch(() => { if (!cancelled) setExistingTypes([]) })
+    return () => { cancelled = true }
+  }, [selectedTrial])
+
+  const effectiveType = fileType === 'auto' ? null : fileType
+  const hasExistingData = effectiveType && existingTypes.includes(effectiveType)
 
   async function handleUpload() {
     if (!file) return
@@ -122,6 +140,17 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
           ))}
         </select>
       </div>
+
+      {/* Existing data warning */}
+      {hasExistingData && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
+          <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-800">
+            <p className="font-medium">This trial already has {FILE_TYPES.find(ft => ft.value === effectiveType)?.label?.replace(/ \(.*\)/, '') || effectiveType} data</p>
+            <p className="mt-0.5 text-xs">Matching rows will be updated with new values. New rows will be added. Existing rows not in this file will be kept.</p>
+          </div>
+        </div>
+      )}
 
       {/* Drop zone */}
       <div

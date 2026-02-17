@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { ClipboardPaste, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ClipboardPaste, CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 
@@ -25,6 +25,23 @@ export default function PasteData({ trials }: { trials: { id: string; name: stri
   const [csvText, setCsvText] = useState('')
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<PasteResult | null>(null)
+  const [existingTypes, setExistingTypes] = useState<string[]>([])
+
+  // Check which data types already have data for the selected trial
+  useEffect(() => {
+    if (!selectedTrial) {
+      setExistingTypes([])
+      return
+    }
+    let cancelled = false
+    fetch(`/api/upload/check-existing?trialId=${encodeURIComponent(selectedTrial)}`)
+      .then(res => res.json())
+      .then(data => { if (!cancelled) setExistingTypes(data.fileTypes || []) })
+      .catch(() => { if (!cancelled) setExistingTypes([]) })
+    return () => { cancelled = true }
+  }, [selectedTrial])
+
+  const hasExistingData = existingTypes.includes(dataType)
 
   async function handleImport() {
     if (!csvText.trim() || !selectedTrial) return
@@ -97,6 +114,17 @@ export default function PasteData({ trials }: { trials: { id: string; name: stri
           ))}
         </select>
       </div>
+
+      {/* Existing data warning */}
+      {hasExistingData && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
+          <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-800">
+            <p className="font-medium">This trial already has {DATA_TYPES.find(dt => dt.value === dataType)?.label || dataType} data</p>
+            <p className="mt-0.5 text-xs">Matching rows will be updated with new values. New rows will be added. Existing rows not in this import will be kept.</p>
+          </div>
+        </div>
+      )}
 
       <div>
         <label className="signpost-label block mb-1">CSV DATA</label>
