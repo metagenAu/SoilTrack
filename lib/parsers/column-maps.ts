@@ -36,6 +36,12 @@ export interface ColumnMapConfig {
    * Soil Health → property, Chemistry → grower name, Plot → trial.
    */
   trialIdAliases?: string[]
+  /**
+   * Row fields that form the natural dedup key (excluding trial_id).
+   * Must match the columns in the corresponding unique index so that
+   * duplicate rows are collapsed before hitting the DB's ON CONFLICT clause.
+   */
+  naturalKeyFields: string[]
 }
 
 export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
@@ -48,12 +54,13 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
       { dbField: 'date', aliases: ['date', 'sample_date', 'collection_date', 'sampling_date'], type: 'date' },
       { dbField: 'property', aliases: ['property', 'farm', 'site'], type: 'string' },
       { dbField: 'block', aliases: ['block', 'paddock', 'zone'], type: 'string' },
-      { dbField: 'barcode', aliases: ['barcode', 'bar_code', 'bar code'], type: 'string' },
+      { dbField: 'barcode', aliases: ['barcode', 'bar_code', 'bar code', 'sample barcode', 'sample_barcode', 'samplebarcode'], type: 'string' },
       { dbField: 'latitude', aliases: ['latitude', 'lat'], type: 'number' },
       { dbField: 'longitude', aliases: ['longitude', 'lng', 'lon', 'long'], type: 'number' },
     ],
     valueColumns: [],
     trialIdAliases: ['property', 'farm', 'site'],
+    naturalKeyFields: ['sample_no', 'date', 'property', 'block'],
   },
 
   soilChemistry: {
@@ -64,11 +71,12 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
       { dbField: 'sample_no', aliases: ['sampleno', 'sample_no', 'sample no', 'sample', 'sample id', 'sampleid'], type: 'string' },
       { dbField: 'date', aliases: ['date', 'sample_date', 'collection_date', 'sampling_date'], type: 'date' },
       { dbField: 'block', aliases: ['block', 'paddock', 'zone'], type: 'string' },
-      { dbField: 'barcode', aliases: ['barcode', 'bar_code', 'bar code'], type: 'string' },
+      { dbField: 'barcode', aliases: ['barcode', 'bar_code', 'bar code', 'sample barcode', 'sample_barcode', 'samplebarcode'], type: 'string' },
     ],
     extraIdentityAliases: ['property', 'farm', 'site'],
     unitPattern: /\(([^)]+)\)/,
     trialIdAliases: ['grower', 'grower name', 'grower_name'],
+    naturalKeyFields: ['barcode', 'sample_no', 'date', 'metric'],
   },
 
   plotData: {
@@ -87,6 +95,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
       { dbField: 'disease_score', aliases: ['disease', 'disease_score', 'disease score', 'diseasescore'], type: 'number' },
     ],
     trialIdAliases: ['trial', 'trial id', 'trial_id', 'trial no', 'trial no.', 'trial number', 'trial code'],
+    naturalKeyFields: ['plot', 'trt_number', 'rep'],
   },
 
   tissueChemistry: {
@@ -97,11 +106,12 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
       { dbField: 'sample_no', aliases: ['sampleno', 'sample_no', 'sample no', 'sample', 'sample id', 'sampleid'], type: 'string' },
       { dbField: 'date', aliases: ['date', 'sample_date', 'collection_date', 'sampling_date'], type: 'date' },
       { dbField: 'tissue_type', aliases: ['tissue', 'tissue_type', 'tissue type', 'tissuetype', 'plant_part', 'plant part'], type: 'string' },
-      { dbField: 'barcode', aliases: ['barcode', 'bar_code', 'bar code'], type: 'string' },
+      { dbField: 'barcode', aliases: ['barcode', 'bar_code', 'bar code', 'sample barcode', 'sample_barcode', 'samplebarcode'], type: 'string' },
     ],
     extraIdentityAliases: [],
     unitPattern: /\(([^)]+)\)/,
     trialIdAliases: ['grower', 'grower name', 'grower_name'],
+    naturalKeyFields: ['barcode', 'sample_no', 'date', 'tissue_type', 'metric'],
   },
 
   sampleMetadata: {
@@ -114,10 +124,11 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
       { dbField: 'block', aliases: ['block', 'paddock', 'zone'], type: 'string' },
       { dbField: 'treatment', aliases: ['treatment', 'trt', 'trt_number', 'trt_no'], type: 'number' },
       { dbField: 'assay_type', aliases: ['assay_type', 'assay', 'assaytype', 'assay type'], type: 'string' },
-      { dbField: 'barcode', aliases: ['barcode', 'bar_code', 'bar code'], type: 'string' },
+      { dbField: 'barcode', aliases: ['barcode', 'bar_code', 'bar code', 'sample barcode', 'sample_barcode', 'samplebarcode'], type: 'string' },
     ],
     extraIdentityAliases: ['rep', 'replicate', 'property', 'farm', 'site'],
     unitPattern: /\(([^)]+)\)/,
+    naturalKeyFields: ['assay_type', 'barcode', 'sample_no', 'date', 'metric'],
   },
 }
 

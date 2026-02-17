@@ -18,6 +18,23 @@ import { COLUMN_MAPS, type ColumnMapConfig } from './parsers/column-maps'
 import { genericParse, type ParseResult } from './parsers/generic-parser'
 import { type SupabaseClient } from '@supabase/supabase-js'
 
+/**
+ * Deduplicate rows by natural key so that a single INSERT … ON CONFLICT
+ * batch never contains two rows targeting the same unique-index entry.
+ * Last occurrence wins (matches ON CONFLICT DO UPDATE semantics).
+ */
+function deduplicateRows(
+  rows: Record<string, any>[],
+  keyFields: string[]
+): Record<string, any>[] {
+  const seen = new Map<string, number>()
+  for (let i = 0; i < rows.length; i++) {
+    const key = keyFields.map(f => String(rows[i][f] ?? '')).join('\0')
+    seen.set(key, i) // last-write wins
+  }
+  return [...seen.values()].sort((a, b) => a - b).map(i => rows[i])
+}
+
 export interface PipelineResult {
   status: 'success' | 'needs_review' | 'error'
   records?: number
@@ -149,13 +166,17 @@ export async function runPipeline(
       }
     }
 
-    // Step 4: Load via atomic RPC
+    // Step 4: Deduplicate rows by natural key to prevent
+    // "ON CONFLICT DO UPDATE command cannot affect row a second time"
+    const dedupedRows = deduplicateRows(parseResult.rows, config.naturalKeyFields)
+
+    // Step 5: Load via atomic RPC
     const { data: rpcResult, error: rpcError } = await supabase.rpc('load_and_track', {
       p_table_name: config.tableName,
       p_trial_id: trialId,
       p_file_type: config.fileType,
       p_filename: filename,
-      p_rows: parseResult.rows,
+      p_rows: dedupedRows,
       p_raw_upload_id: rawUploadId,
     })
 
@@ -231,13 +252,16 @@ export async function reprocessRawUpload(
     return { status: 'error', detail: 'No valid records after re-mapping' }
   }
 
+  // Deduplicate rows by natural key before RPC
+  const dedupedRows = deduplicateRows(parseResult.rows, config.naturalKeyFields)
+
   // Load via RPC
   const { data: rpcResult, error: rpcError } = await supabase.rpc('load_and_track', {
     p_table_name: config.tableName,
     p_trial_id: rawUpload.trial_id,
     p_file_type: config.fileType,
     p_filename: rawUpload.filename,
-    p_rows: parseResult.rows,
+    p_rows: dedupedRows,
     p_raw_upload_id: rawUploadId,
   })
 
