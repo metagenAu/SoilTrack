@@ -5,6 +5,7 @@ import { Camera, Upload, Trash2, X, Loader2, Image as ImageIcon } from 'lucide-r
 import Button from '@/components/ui/Button'
 import { cn, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { useUserRole } from '@/components/providers/UserRoleProvider'
 
 interface TrialPhoto {
   id: string
@@ -32,6 +33,7 @@ export default function PhotosTab({ photos: initialPhotos, trialId, supabaseUrl 
   const [lightboxPhoto, setLightboxPhoto] = useState<TrialPhoto | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { canUpload, canModify } = useUserRole()
 
   async function handleUpload(fileList: FileList) {
     const files = Array.from(fileList).filter(f =>
@@ -107,44 +109,50 @@ export default function PhotosTab({ photos: initialPhotos, trialId, supabaseUrl 
     <div>
       <div className="flex items-center justify-between mb-4">
         <p className="signpost-label">TRIAL PHOTOS ({photos.length})</p>
-        <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files && e.target.files.length > 0) {
-                handleUpload(e.target.files)
-              }
-            }}
-          />
-          <Button
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-          >
-            {uploading ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <Upload size={14} />
-                Upload Photos
-              </>
-            )}
-          </Button>
-        </div>
+        {canUpload && (
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  handleUpload(e.target.files)
+                }
+              }}
+            />
+            <Button
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload size={14} />
+                  Upload Photos
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
       {photos.length === 0 ? (
         <div className="text-center py-12 text-brand-grey-1">
           <Camera size={40} className="mx-auto mb-3 opacity-40" />
           <p className="text-sm font-medium mb-1">No photos yet</p>
-          <p className="text-xs">Upload trial photos using the button above or via the Data Hub.</p>
+          <p className="text-xs">
+            {canUpload
+              ? 'Upload trial photos using the button above or via the Data Hub.'
+              : 'No trial photos have been uploaded.'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -166,20 +174,22 @@ export default function PhotosTab({ photos: initialPhotos, trialId, supabaseUrl 
                   <p className="text-[10px] text-white/70">{formatDate(photo.created_at)}</p>
                 )}
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDelete(photo)
-                }}
-                disabled={deleting === photo.id}
-                className="absolute top-2 right-2 p-1 rounded-md bg-black/50 text-white opacity-0 group-hover:opacity-100 hover:bg-red-500 transition-all"
-              >
-                {deleting === photo.id ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Trash2 size={14} />
-                )}
-              </button>
+              {canModify && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDelete(photo)
+                  }}
+                  disabled={deleting === photo.id}
+                  className="absolute top-2 right-2 p-1 rounded-md bg-black/50 text-white opacity-0 group-hover:opacity-100 hover:bg-red-500 transition-all"
+                >
+                  {deleting === photo.id ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={14} />
+                  )}
+                </button>
+              )}
             </div>
           ))}
         </div>

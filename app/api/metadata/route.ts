@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { runPipeline } from '@/lib/upload-pipeline'
+import { getUserRole, canUpload, canModify } from '@/lib/auth'
 
 export const maxDuration = 60
 
@@ -39,6 +40,11 @@ export async function GET(request: NextRequest) {
  *   or { trialId: string, assayType: string, csvText: string }
  */
 export async function POST(request: NextRequest) {
+  const { role } = await getUserRole()
+  if (!canUpload(role)) {
+    return NextResponse.json({ status: 'error', detail: 'Upload permission required' }, { status: 403 })
+  }
+
   const supabase = createServerSupabaseClient()
 
   const contentType = request.headers.get('content-type') || ''
@@ -170,6 +176,11 @@ export async function POST(request: NextRequest) {
  * Delete metadata for a trial (optionally filtered by assay type)
  */
 export async function DELETE(request: NextRequest) {
+  const { role } = await getUserRole()
+  if (!canModify(role)) {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
+
   const supabase = createServerSupabaseClient()
   const trialId = request.nextUrl.searchParams.get('trialId')
   const assayType = request.nextUrl.searchParams.get('assayType')

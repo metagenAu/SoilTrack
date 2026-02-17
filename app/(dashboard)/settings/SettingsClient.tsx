@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
-import { LogOut, Database, Download, CheckCircle, XCircle } from 'lucide-react'
+import { LogOut, Database, Download, CheckCircle, XCircle, Shield, Users, ChevronDown } from 'lucide-react'
+import { useUserRole, type UserRole } from '@/components/providers/UserRoleProvider'
 
 const EXPORT_TABLES = [
   { key: 'trials', label: 'Trials' },
@@ -16,9 +17,78 @@ const EXPORT_TABLES = [
   { key: 'management_log', label: 'Management Log' },
 ]
 
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: 'Admin',
+  upload: 'Upload',
+  readonly: 'Read Only',
+}
+
+const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
+  admin: 'Full access — can upload, modify, delete trials, and manage users',
+  upload: 'Can upload new trials and data, view everything',
+  readonly: 'View-only access to all data',
+}
+
+interface UserProfile {
+  id: string
+  email: string
+  full_name: string | null
+  role: UserRole
+  created_at: string
+}
+
 export default function SettingsClient({ user }: { user: any }) {
   const supabase = createClient()
   const [exporting, setExporting] = useState<string | null>(null)
+  const { role, canManageUsers } = useUserRole()
+
+  // Admin user management state
+  const [users, setUsers] = useState<UserProfile[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [updatingUser, setUpdatingUser] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (canManageUsers) {
+      loadUsers()
+    }
+  }, [canManageUsers])
+
+  async function loadUsers() {
+    setLoadingUsers(true)
+    try {
+      const res = await fetch('/api/admin/users')
+      if (res.ok) {
+        const data = await res.json()
+        setUsers(data.users || [])
+      }
+    } catch (err) {
+      console.error('Failed to load users:', err)
+    }
+    setLoadingUsers(false)
+  }
+
+  async function handleRoleChange(userId: string, newRole: UserRole) {
+    setUpdatingUser(userId)
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, role: newRole }),
+      })
+
+      if (res.ok) {
+        setUsers(prev =>
+          prev.map(u => u.id === userId ? { ...u, role: newRole } : u)
+        )
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to update role')
+      }
+    } catch (err) {
+      console.error('Failed to update user role:', err)
+    }
+    setUpdatingUser(null)
+  }
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -77,6 +147,14 @@ export default function SettingsClient({ user }: { user: any }) {
             <span className="text-brand-grey-1">User ID</span>
             <span className="font-mono text-xs">{user?.id || '—'}</span>
           </div>
+          <div className="flex justify-between items-center">
+            <span className="text-brand-grey-1">Role</span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-brand-grey-3">
+              <Shield size={12} />
+              {ROLE_LABELS[role]}
+            </span>
+          </div>
+          <p className="text-xs text-brand-grey-1 pt-1">{ROLE_DESCRIPTIONS[role]}</p>
         </div>
         <div className="mt-4 pt-4 border-t border-brand-grey-2">
           <Button variant="secondary" size="sm" onClick={handleSignOut}>
@@ -85,6 +163,53 @@ export default function SettingsClient({ user }: { user: any }) {
           </Button>
         </div>
       </div>
+
+      {/* User Management (Admin only) */}
+      {canManageUsers && (
+        <div className="card">
+          <div className="flex items-center gap-2 mb-3">
+            <Users size={16} />
+            <p className="signpost-label">USER MANAGEMENT</p>
+          </div>
+
+          {loadingUsers ? (
+            <p className="text-sm text-brand-grey-1">Loading users...</p>
+          ) : users.length === 0 ? (
+            <p className="text-sm text-brand-grey-1">No users found.</p>
+          ) : (
+            <div className="space-y-2">
+              {users.map((u) => (
+                <div
+                  key={u.id}
+                  className="flex items-center justify-between py-2 px-3 rounded-lg bg-brand-grey-3 text-sm"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">{u.email}</p>
+                    {u.full_name && (
+                      <p className="text-xs text-brand-grey-1 truncate">{u.full_name}</p>
+                    )}
+                  </div>
+                  <div className="flex-shrink-0 ml-3">
+                    <select
+                      value={u.role}
+                      onChange={(e) => handleRoleChange(u.id, e.target.value as UserRole)}
+                      disabled={updatingUser === u.id || u.id === user?.id}
+                      className="px-2 py-1 rounded-md border border-brand-grey-2 bg-white text-xs font-medium focus:outline-none focus:border-brand-black/30 disabled:opacity-50"
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="upload">Upload</option>
+                      <option value="readonly">Read Only</option>
+                    </select>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-brand-grey-1 mt-3">
+            Change user roles to control access. Admins can delete/modify trials and manage users. Upload users can add new data. Read Only users can only view.
+          </p>
+        </div>
+      )}
 
       {/* Supabase connection */}
       <div className="card">

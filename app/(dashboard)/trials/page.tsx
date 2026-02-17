@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getUserRole, canUpload } from '@/lib/auth'
 import PageHeader from '@/components/layout/PageHeader'
 import TrialCard from '@/components/trials/TrialCard'
 import Link from 'next/link'
@@ -39,7 +40,7 @@ async function getTrials() {
 }
 
 export default async function TrialsPage() {
-  const trials = await getTrials()
+  const [trials, { role }] = await Promise.all([getTrials(), getUserRole()])
 
   return (
     <div>
@@ -47,12 +48,14 @@ export default async function TrialsPage() {
         label="TRIAL MANAGEMENT"
         title="All Trials"
         action={
-          <Link href="/data-hub">
-            <Button size="sm">
-              <Plus size={14} />
-              Add Trial
-            </Button>
-          </Link>
+          canUpload(role) ? (
+            <Link href="/data-hub">
+              <Button size="sm">
+                <Plus size={14} />
+                Add Trial
+              </Button>
+            </Link>
+          ) : undefined
         }
       />
 

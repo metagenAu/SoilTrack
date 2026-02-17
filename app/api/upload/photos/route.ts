@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getUserRole, canUpload } from '@/lib/auth'
 
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
+  const { role } = await getUserRole()
+  if (!canUpload(role)) {
+    return NextResponse.json({ error: 'Upload permission required' }, { status: 403 })
+  }
   const supabase = createServerSupabaseClient()
   const formData = await request.formData()
   const trialId = formData.get('trial_id') as string

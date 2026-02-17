@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { reprocessRawUpload } from '@/lib/upload-pipeline'
+import { getUserRole, canUpload } from '@/lib/auth'
 
 export const maxDuration = 60
 
@@ -39,6 +40,11 @@ export async function GET(request: NextRequest) {
  *   { "my_yield_col": "yield_t_ha", "extra_col": "__skip__" }
  */
 export async function POST(request: NextRequest) {
+  const { role } = await getUserRole()
+  if (!canUpload(role)) {
+    return NextResponse.json({ status: 'error', detail: 'Upload permission required' }, { status: 403 })
+  }
+
   const supabase = createServerSupabaseClient()
   const body = await request.json()
   const { rawUploadId, columnOverrides } = body

@@ -4,6 +4,7 @@ import { classifyFile, type FileClassification } from '@/lib/parsers/classify'
 import { parseTrialSummary } from '@/lib/parsers/parseTrialSummary'
 import { runPipeline, parseRawContent } from '@/lib/upload-pipeline'
 import { COLUMN_MAPS, extractTrialId } from '@/lib/parsers/column-maps'
+import { getUserRole, canUpload } from '@/lib/auth'
 
 export const maxDuration = 60
 
@@ -30,6 +31,11 @@ interface FileResult {
 }
 
 export async function POST(request: NextRequest) {
+  const { role } = await getUserRole()
+  if (!canUpload(role)) {
+    return NextResponse.json({ error: 'Upload permission required', results: [] }, { status: 403 })
+  }
+
   try {
     let supabase: ReturnType<typeof createServerSupabaseClient>
     let formData: FormData

@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getUserRole, canUpload } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import PageHeader from '@/components/layout/PageHeader'
 import StatusPill from '@/components/ui/StatusPill'
@@ -79,7 +80,7 @@ export default async function TrialDetailPage({
   params: { id: string }
 }) {
   const id = decodeURIComponent(params.id)
-  const data = await getTrialData(id)
+  const [data, { role }] = await Promise.all([getTrialData(id), getUserRole()])
 
   if (!data) notFound()
 
@@ -103,12 +104,14 @@ export default async function TrialDetailPage({
               {trial.trial_type && <span>{trial.trial_type}</span>}
             </div>
           </div>
-          <Link href={`/data-hub?trial=${encodeURIComponent(trial.id)}`}>
-            <Button size="sm">
-              <Upload size={14} />
-              Upload Data
-            </Button>
-          </Link>
+          {canUpload(role) && (
+            <Link href={`/data-hub?trial=${encodeURIComponent(trial.id)}`}>
+              <Button size="sm">
+                <Upload size={14} />
+                Upload Data
+              </Button>
+            </Link>
+          )}
         </div>
 
         {/* Data coverage badges */}
