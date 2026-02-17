@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { runPipeline } from '@/lib/upload-pipeline'
+import { runPipeline, parseRawContent } from '@/lib/upload-pipeline'
+import { COLUMN_MAPS, extractTrialId } from '@/lib/parsers/column-maps'
 
 export const maxDuration = 60
 
@@ -16,10 +17,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: 'error', detail: err?.message || 'Failed to read request data' }, { status: 400 })
   }
 
-  const { trialId, dataType, csvText, assayType } = body
+  let { trialId, dataType, csvText, assayType } = body
 
-  if (!trialId || !dataType || !csvText) {
+  if (!dataType || !csvText) {
     return NextResponse.json({ status: 'error', detail: 'Missing required fields' }, { status: 400 })
+  }
+
+  // Auto-detect trial ID from pasted data when not provided
+  if (!trialId) {
+    const config = COLUMN_MAPS[dataType]
+    if (config) {
+      const { rows } = parseRawContent(csvText, false)
+      const detected = extractTrialId(rows, config)
+      if (detected) {
+        trialId = detected
+        await supabase.from('trials').upsert(
+          { id: detected, name: detected },
+          { onConflict: 'id', ignoreDuplicates: true }
+        )
+      }
+    }
+  }
+
+  if (!trialId) {
+    return NextResponse.json({ status: 'error', detail: 'Missing trial ID — select a trial or ensure the data contains a grower/property/trial column' }, { status: 400 })
   }
 
   try {
