@@ -51,7 +51,7 @@
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding: 8px 0 24px 0;">
-                    <a href="{{ .ConfirmationURL }}"
+                    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite"
                        target="_blank"
                        style="display: inline-block; padding: 12px 32px; background-color: #008BCE; color: #FFFFFF; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 8px; letter-spacing: 0.3px;">
                       Accept Invitation
@@ -71,7 +71,7 @@
                 If the button doesn't work, copy and paste this link into your browser:
               </p>
               <p style="margin: 4px 0 0 0; font-size: 12px; word-break: break-all;">
-                <a href="{{ .ConfirmationURL }}" style="color: #008BCE; text-decoration: none;">{{ .ConfirmationURL }}</a>
+                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite" style="color: #008BCE; text-decoration: none;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite</a>
               </p>
             </td>
           </tr>
