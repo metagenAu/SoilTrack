@@ -163,14 +163,26 @@ export default function FolderUpload() {
       ))
 
       try {
-        const formData = new FormData()
-        for (const i of summaryIndices) formData.append('files', files[i])
+        // Eagerly read file content into in-memory Blobs so the fetch body
+        // doesn't depend on lazy file-handle reads (which can fail if the
+        // handle has gone stale between file selection and upload click).
+        const summaryBlobs: { blob: Blob; name: string }[] = []
+        for (const i of summaryIndices) {
+          const f = files[i]
+          const buf = await f.arrayBuffer()
+          summaryBlobs.push({ blob: new Blob([buf], { type: f.type || 'application/octet-stream' }), name: f.name })
+        }
 
         // Retry helper: serverless cold-starts or transient network errors
         // can cause "Failed to fetch" — retry once after a short delay.
         let res: Response | undefined
         for (let attempt = 0; attempt < 2; attempt++) {
           try {
+            // Build a fresh FormData each attempt — a prior failed fetch may
+            // have partially consumed the body stream, making it unusable.
+            const formData = new FormData()
+            for (const sb of summaryBlobs) formData.append('files', sb.blob, sb.name)
+
             const controller = new AbortController()
             const timeout = setTimeout(() => controller.abort(), 120_000)
 
@@ -264,13 +276,17 @@ export default function FolderUpload() {
           ))
 
           try {
-            const dataForm = new FormData()
-            dataForm.append('files', files[i])
-            dataForm.append('trialId', returnedTrialId)
+            const f = files[i]
+            const buf = await f.arrayBuffer()
+            const blob = new Blob([buf], { type: f.type || 'application/octet-stream' })
 
             let res: Response | undefined
             for (let attempt = 0; attempt < 2; attempt++) {
               try {
+                const dataForm = new FormData()
+                dataForm.append('files', blob, f.name)
+                dataForm.append('trialId', returnedTrialId)
+
                 const controller = new AbortController()
                 const timeout = setTimeout(() => controller.abort(), 120_000)
 
@@ -346,13 +362,17 @@ export default function FolderUpload() {
           ))
 
           try {
-            const photoForm = new FormData()
-            photoForm.append('files', files[i])
-            photoForm.append('trialId', returnedTrialId)
+            const f = files[i]
+            const buf = await f.arrayBuffer()
+            const blob = new Blob([buf], { type: f.type || 'application/octet-stream' })
 
             let res: Response | undefined
             for (let attempt = 0; attempt < 2; attempt++) {
               try {
+                const photoForm = new FormData()
+                photoForm.append('files', blob, f.name)
+                photoForm.append('trialId', returnedTrialId)
+
                 const controller = new AbortController()
                 const timeout = setTimeout(() => controller.abort(), 120_000)
 
