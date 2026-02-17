@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { classifyFile, type FileClassification } from '@/lib/parsers/classify'
 import { parseTrialSummary } from '@/lib/parsers/parseTrialSummary'
-import { runPipeline } from '@/lib/upload-pipeline'
+import { runPipeline, parseRawContent } from '@/lib/upload-pipeline'
+import { COLUMN_MAPS, extractTrialId } from '@/lib/parsers/column-maps'
 
 export const maxDuration = 60
 
@@ -198,14 +199,32 @@ export async function POST(request: NextRequest) {
         } else {
           // Data files (soilHealth, soilChemistry, plotData, tissueChemistry, sampleMetadata)
           // All handled by the generic upload pipeline
-          const targetTrialId = trialId
+          const isExcel = /\.xlsx?$/i.test(filename)
+          const content = isExcel ? await file.arrayBuffer() : await file.text()
+
+          // Auto-detect trial ID from file content if no trial summary was uploaded
+          let targetTrialId = trialId
           if (!targetTrialId) {
-            results.push({ filename, type: typeLabel, status: 'error', detail: 'No trial context — upload a Trial Summary first' })
+            const config = COLUMN_MAPS[classification]
+            if (config) {
+              const { rows } = parseRawContent(content, isExcel)
+              targetTrialId = extractTrialId(rows, config)
+            }
+          }
+
+          if (!targetTrialId) {
+            results.push({ filename, type: typeLabel, status: 'error', detail: 'No trial context — upload a Trial Summary first or ensure the file contains a grower/property/trial column' })
             continue
           }
 
-          const isExcel = /\.xlsx?$/i.test(filename)
-          const content = isExcel ? await file.arrayBuffer() : await file.text()
+          // Ensure the trial exists (create a minimal record if auto-detected)
+          if (!trialId && targetTrialId) {
+            await supabase.from('trials').upsert(
+              { id: targetTrialId, name: targetTrialId },
+              { onConflict: 'id', ignoreDuplicates: true }
+            )
+            trialId = targetTrialId
+          }
 
           const pipelineResult = await runPipeline(
             supabase,

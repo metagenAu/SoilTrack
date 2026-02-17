@@ -35,13 +35,13 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
   const [reviewOpen, setReviewOpen] = useState(false)
 
   async function handleUpload() {
-    if (!file || !selectedTrial) return
+    if (!file) return
     setUploading(true)
     setResult(null)
 
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('trialId', selectedTrial)
+    if (selectedTrial) formData.append('trialId', selectedTrial)
     formData.append('fileType', fileType)
 
     try {
@@ -99,11 +99,14 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
           onChange={(e) => setSelectedTrial(e.target.value)}
           className="w-full px-3 py-2 rounded-lg border border-brand-grey-2 bg-brand-grey-3 text-sm text-brand-black focus:outline-none focus:border-brand-black/30"
         >
-          <option value="">Select a trial...</option>
+          <option value="">Auto-detect from file</option>
           {trials.map((t) => (
             <option key={t.id} value={t.id}>{t.id} — {t.name}</option>
           ))}
         </select>
+        <p className="text-xs text-brand-grey-1 mt-1">
+          Leave blank to auto-detect: grower name (Soil Health), property (Chemistry), or trial (Plot Data)
+        </p>
       </div>
 
       {/* File type selector */}
@@ -150,7 +153,7 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
         </p>
       </div>
 
-      <Button onClick={handleUpload} disabled={uploading || !file || !selectedTrial} className="w-full">
+      <Button onClick={handleUpload} disabled={uploading || !file} className="w-full">
         {uploading ? (
           <>
             <Loader2 size={14} className="animate-spin" />

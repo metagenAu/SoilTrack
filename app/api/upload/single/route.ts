@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { classifyFile } from '@/lib/parsers/classify'
 import { parseTrialSummary } from '@/lib/parsers/parseTrialSummary'
-import { runPipeline } from '@/lib/upload-pipeline'
+import { runPipeline, parseRawContent } from '@/lib/upload-pipeline'
+import { COLUMN_MAPS, extractTrialId } from '@/lib/parsers/column-maps'
 
 export const maxDuration = 60
 
@@ -19,20 +20,45 @@ export async function POST(request: NextRequest) {
   }
 
   const file = formData.get('file') as File | null
-  const trialId = formData.get('trialId') as string
+  let trialId = formData.get('trialId') as string
   const fileType = formData.get('fileType') as string
 
-  if (!file || !trialId) {
-    return NextResponse.json({ status: 'error', detail: 'Missing file or trial ID' }, { status: 400 })
+  if (!file) {
+    return NextResponse.json({ status: 'error', detail: 'Missing file' }, { status: 400 })
   }
 
   const filename = file.name || 'unnamed'
   const classification = fileType === 'auto' ? classifyFile(filename) : fileType
 
+  // Read file content once upfront so it can be reused for both auto-detection and processing
+  const isExcel = /\.xlsx?$/i.test(filename)
+  const fileContent = isExcel ? await file.arrayBuffer() : await file.text()
+
+  // Auto-detect trial ID from file content when not provided
+  if (!trialId && classification !== 'trialSummary') {
+    const config = COLUMN_MAPS[classification]
+    if (config) {
+      const { rows } = parseRawContent(fileContent, isExcel)
+      const detected = extractTrialId(rows, config)
+      if (detected) {
+        trialId = detected
+        // Ensure the trial exists (create a minimal record if auto-detected)
+        await supabase.from('trials').upsert(
+          { id: detected, name: detected },
+          { onConflict: 'id', ignoreDuplicates: true }
+        )
+      }
+    }
+  }
+
+  if (!trialId) {
+    return NextResponse.json({ status: 'error', detail: 'Missing trial ID — select a trial or ensure the file contains a grower/property/trial column' }, { status: 400 })
+  }
+
   try {
     // Trial summary still uses its own parser (not a data table)
     if (classification === 'trialSummary') {
-      const buffer = await file.arrayBuffer()
+      const buffer = isExcel ? fileContent as ArrayBuffer : await file.arrayBuffer()
       const parsed = parseTrialSummary(buffer)
 
       // Bug #4: Warn if the summary's internal ID doesn't match the selected trial
@@ -105,9 +131,6 @@ export async function POST(request: NextRequest) {
     }
 
     // All data types go through the pipeline
-    const isExcel = /\.xlsx?$/i.test(file.name || '')
-    const content = isExcel ? await file.arrayBuffer() : await file.text()
-
     const extraDefaults: Record<string, any> = {}
     if (classification === 'sampleMetadata') {
       extraDefaults.assay_type = (formData.get('assayType') as string) || 'general'
@@ -118,7 +141,7 @@ export async function POST(request: NextRequest) {
       trialId,
       classification,
       file.name || 'unnamed',
-      content,
+      fileContent,
       isExcel,
       { extraDefaults },
     )

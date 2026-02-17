@@ -31,6 +31,11 @@ export interface ColumnMapConfig {
   extraIdentityAliases?: string[]
   /** Unit extraction regex for pivot columns — matches e.g. "pH (1:5)" */
   unitPattern?: RegExp
+  /**
+   * Column header aliases used to auto-detect the trial ID from file content.
+   * Soil Health → grower name, Chemistry → property, Plot → trial.
+   */
+  trialIdAliases?: string[]
 }
 
 export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
@@ -48,6 +53,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
       { dbField: 'longitude', aliases: ['longitude', 'lng', 'lon', 'long'], type: 'number' },
     ],
     valueColumns: [],
+    trialIdAliases: ['grower', 'grower name', 'grower_name'],
   },
 
   soilChemistry: {
@@ -61,6 +67,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
     ],
     extraIdentityAliases: ['barcode', 'bar_code', 'bar code', 'property', 'farm', 'site'],
     unitPattern: /\(([^)]+)\)/,
+    trialIdAliases: ['property', 'farm', 'site'],
   },
 
   plotData: {
@@ -78,6 +85,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
       { dbField: 'vigour', aliases: ['vigour', 'vigor', 'vigour_score', 'vigor_score'], type: 'number' },
       { dbField: 'disease_score', aliases: ['disease', 'disease_score', 'disease score', 'diseasescore'], type: 'number' },
     ],
+    trialIdAliases: ['trial', 'trial id', 'trial_id', 'trial no', 'trial no.', 'trial number', 'trial code'],
   },
 
   tissueChemistry: {
@@ -91,6 +99,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
     ],
     extraIdentityAliases: [],
     unitPattern: /\(([^)]+)\)/,
+    trialIdAliases: ['property', 'farm', 'site'],
   },
 
   sampleMetadata: {
@@ -107,6 +116,37 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
     extraIdentityAliases: ['barcode', 'bar_code', 'bar code', 'rep', 'replicate', 'property', 'farm', 'site'],
     unitPattern: /\(([^)]+)\)/,
   },
+}
+
+/**
+ * Extract a trial ID from raw parsed rows by looking for the first non-empty value
+ * in a column matching the file type's trialIdAliases.
+ *
+ * Soil Health → grower name, Chemistry → property, Plot → trial.
+ */
+export function extractTrialId(
+  rows: Record<string, any>[],
+  config: ColumnMapConfig
+): string | null {
+  if (!config.trialIdAliases || config.trialIdAliases.length === 0 || rows.length === 0) {
+    return null
+  }
+
+  const headers = Object.keys(rows[0])
+
+  for (const alias of config.trialIdAliases) {
+    const aliasLower = alias.toLowerCase()
+    const matchedHeader = headers.find(h => h.toLowerCase().trim() === aliasLower)
+    if (!matchedHeader) continue
+
+    // Return the first non-empty value from that column
+    for (const row of rows) {
+      const val = String(row[matchedHeader] ?? '').trim()
+      if (val) return val
+    }
+  }
+
+  return null
 }
 
 /**
