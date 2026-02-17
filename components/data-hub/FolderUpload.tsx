@@ -163,19 +163,48 @@ export default function FolderUpload() {
       ))
 
       try {
-        const formData = new FormData()
-        for (const i of summaryIndices) formData.append('files', files[i])
+        // Eagerly read file content into in-memory Blobs so the fetch body
+        // doesn't depend on lazy file-handle reads (which can fail if the
+        // handle has gone stale between file selection and upload click).
+        const summaryBlobs: { blob: Blob; name: string }[] = []
+        for (const i of summaryIndices) {
+          const f = files[i]
+          const buf = await f.arrayBuffer()
+          summaryBlobs.push({ blob: new Blob([buf], { type: f.type || 'application/octet-stream' }), name: f.name })
+        }
 
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 120_000)
+        // Retry helper: serverless cold-starts or transient network errors
+        // can cause "Failed to fetch" — retry once after a short delay.
+        let res: Response | undefined
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            // Build a fresh FormData each attempt — a prior failed fetch may
+            // have partially consumed the body stream, making it unusable.
+            const formData = new FormData()
+            for (const sb of summaryBlobs) formData.append('files', sb.blob, sb.name)
 
-        const res = await fetch('/api/upload/folder', {
-          method: 'POST',
-          body: formData,
-          signal: controller.signal,
-        })
+            const controller = new AbortController()
+            const timeout = setTimeout(() => controller.abort(), 120_000)
 
-        clearTimeout(timeout)
+            res = await fetch('/api/upload/folder', {
+              method: 'POST',
+              body: formData,
+              signal: controller.signal,
+            })
+
+            clearTimeout(timeout)
+            break // success — exit retry loop
+          } catch (fetchErr: any) {
+            if (attempt === 0 && fetchErr?.name !== 'AbortError') {
+              // First attempt failed with a network error — wait and retry
+              await new Promise(r => setTimeout(r, 2000))
+              continue
+            }
+            throw fetchErr // second attempt or abort — propagate
+          }
+        }
+
+        if (!res) throw new Error('Upload failed after retries')
 
         if (!res.ok) {
           let detail = `Server error (${res.status})`
@@ -247,20 +276,38 @@ export default function FolderUpload() {
           ))
 
           try {
-            const dataForm = new FormData()
-            dataForm.append('files', files[i])
-            dataForm.append('trialId', returnedTrialId)
+            const f = files[i]
+            const buf = await f.arrayBuffer()
+            const blob = new Blob([buf], { type: f.type || 'application/octet-stream' })
 
-            const controller = new AbortController()
-            const timeout = setTimeout(() => controller.abort(), 120_000)
+            let res: Response | undefined
+            for (let attempt = 0; attempt < 2; attempt++) {
+              try {
+                const dataForm = new FormData()
+                dataForm.append('files', blob, f.name)
+                dataForm.append('trialId', returnedTrialId)
 
-            const res = await fetch('/api/upload/folder', {
-              method: 'POST',
-              body: dataForm,
-              signal: controller.signal,
-            })
+                const controller = new AbortController()
+                const timeout = setTimeout(() => controller.abort(), 120_000)
 
-            clearTimeout(timeout)
+                res = await fetch('/api/upload/folder', {
+                  method: 'POST',
+                  body: dataForm,
+                  signal: controller.signal,
+                })
+
+                clearTimeout(timeout)
+                break
+              } catch (fetchErr: any) {
+                if (attempt === 0 && fetchErr?.name !== 'AbortError') {
+                  await new Promise(r => setTimeout(r, 2000))
+                  continue
+                }
+                throw fetchErr
+              }
+            }
+
+            if (!res) throw new Error('Upload failed after retries')
 
             if (!res.ok) {
               let detail = `Server error (${res.status})`
@@ -315,20 +362,38 @@ export default function FolderUpload() {
           ))
 
           try {
-            const photoForm = new FormData()
-            photoForm.append('files', files[i])
-            photoForm.append('trialId', returnedTrialId)
+            const f = files[i]
+            const buf = await f.arrayBuffer()
+            const blob = new Blob([buf], { type: f.type || 'application/octet-stream' })
 
-            const controller = new AbortController()
-            const timeout = setTimeout(() => controller.abort(), 120_000)
+            let res: Response | undefined
+            for (let attempt = 0; attempt < 2; attempt++) {
+              try {
+                const photoForm = new FormData()
+                photoForm.append('files', blob, f.name)
+                photoForm.append('trialId', returnedTrialId)
 
-            const res = await fetch('/api/upload/folder', {
-              method: 'POST',
-              body: photoForm,
-              signal: controller.signal,
-            })
+                const controller = new AbortController()
+                const timeout = setTimeout(() => controller.abort(), 120_000)
 
-            clearTimeout(timeout)
+                res = await fetch('/api/upload/folder', {
+                  method: 'POST',
+                  body: photoForm,
+                  signal: controller.signal,
+                })
+
+                clearTimeout(timeout)
+                break
+              } catch (fetchErr: any) {
+                if (attempt === 0 && fetchErr?.name !== 'AbortError') {
+                  await new Promise(r => setTimeout(r, 2000))
+                  continue
+                }
+                throw fetchErr
+              }
+            }
+
+            if (!res) throw new Error('Upload failed after retries')
 
             if (!res.ok) {
               let detail = `Server error (${res.status})`
