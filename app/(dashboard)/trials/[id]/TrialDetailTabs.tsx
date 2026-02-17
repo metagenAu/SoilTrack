@@ -8,6 +8,7 @@ import PlotDataTable from '@/components/trials/PlotDataTable'
 import ManagementLog from '@/components/trials/ManagementLog'
 import MetadataTable from '@/components/trials/MetadataTable'
 import PhotosTab from '@/components/trials/PhotosTab'
+import TrialMap from '@/components/trials/TrialMapWrapper'
 import StatCard from '@/components/ui/StatCard'
 
 interface TrialDetailTabsProps {
@@ -19,10 +20,11 @@ interface TrialDetailTabsProps {
   dataCoverage: Record<string, boolean>
   metadata: any[]
   photos: any[]
+  gisLayers: any[]
   supabaseUrl: string
 }
 
-const tabs = ['Summary', 'Treatments', 'Soil Health', 'Plot Data', 'Assay Results', 'Photos', 'Management']
+const tabs = ['Summary', 'Treatments', 'Soil Health', 'Plot Data', 'Assay Results', 'Photos', 'Map', 'Management']
 
 export default function TrialDetailTabs({
   trial,
@@ -33,6 +35,7 @@ export default function TrialDetailTabs({
   dataCoverage,
   metadata,
   photos,
+  gisLayers,
   supabaseUrl,
 }: TrialDetailTabsProps) {
   const [activeTab, setActiveTab] = useState('Summary')
@@ -151,6 +154,17 @@ export default function TrialDetailTabs({
       {activeTab === 'Photos' && (
         <div className="card">
           <PhotosTab photos={photos} trialId={trial.id} supabaseUrl={supabaseUrl} />
+        </div>
+      )}
+
+      {activeTab === 'Map' && (
+        <div className="card">
+          <TrialMap
+            trial={trial}
+            samples={samples}
+            gisLayers={gisLayers}
+            supabaseUrl={supabaseUrl}
+          />
         </div>
       )}
 
