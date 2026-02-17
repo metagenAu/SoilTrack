@@ -41,7 +41,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
     identityColumns: [
       { dbField: 'sample_no', aliases: ['sampleno', 'sample_no', 'sample no', 'sample', 'sample id', 'sampleid'], type: 'string' },
       { dbField: 'date', aliases: ['date', 'sample_date', 'collection_date', 'sampling_date'], type: 'date' },
-      { dbField: 'property', aliases: ['property', 'farm', 'site', 'paddock'], type: 'string' },
+      { dbField: 'property', aliases: ['property', 'farm', 'site'], type: 'string' },
       { dbField: 'block', aliases: ['block', 'paddock', 'zone'], type: 'string' },
       { dbField: 'barcode', aliases: ['barcode', 'bar_code', 'bar code'], type: 'string' },
       { dbField: 'latitude', aliases: ['latitude', 'lat'], type: 'number' },
@@ -57,9 +57,9 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
     identityColumns: [
       { dbField: 'sample_no', aliases: ['sampleno', 'sample_no', 'sample no', 'sample', 'sample id', 'sampleid'], type: 'string' },
       { dbField: 'date', aliases: ['date', 'sample_date', 'collection_date', 'sampling_date'], type: 'date' },
-      { dbField: 'block', aliases: ['block', 'property', 'paddock', 'zone'], type: 'string' },
+      { dbField: 'block', aliases: ['block', 'paddock', 'zone'], type: 'string' },
     ],
-    extraIdentityAliases: ['barcode', 'bar_code', 'bar code'],
+    extraIdentityAliases: ['barcode', 'bar_code', 'bar code', 'property', 'farm', 'site'],
     unitPattern: /\(([^)]+)\)/,
   },
 
@@ -100,11 +100,11 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
     identityColumns: [
       { dbField: 'sample_no', aliases: ['sampleno', 'sample_no', 'sample no', 'sample', 'sample id', 'sampleid'], type: 'string' },
       { dbField: 'date', aliases: ['date', 'sample_date', 'collection_date', 'sampling_date'], type: 'date' },
-      { dbField: 'block', aliases: ['block', 'property', 'paddock', 'zone'], type: 'string' },
+      { dbField: 'block', aliases: ['block', 'paddock', 'zone'], type: 'string' },
       { dbField: 'treatment', aliases: ['treatment', 'trt', 'trt_number', 'trt_no'], type: 'number' },
       { dbField: 'assay_type', aliases: ['assay_type', 'assay', 'assaytype', 'assay type'], type: 'string' },
     ],
-    extraIdentityAliases: ['barcode', 'bar_code', 'bar code', 'rep', 'replicate'],
+    extraIdentityAliases: ['barcode', 'bar_code', 'bar code', 'rep', 'replicate', 'property', 'farm', 'site'],
     unitPattern: /\(([^)]+)\)/,
   },
 }

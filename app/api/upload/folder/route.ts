@@ -105,20 +105,35 @@ export async function POST(request: NextRequest) {
           if (trialError) throw trialError
 
           if (parsed.treatments.length > 0) {
-            await supabase.from('treatments').delete().eq('trial_id', parsed.metadata.id)
-            const { error: trtError } = await supabase.from('treatments').insert(
-              parsed.treatments.map((t, i) => ({
-                trial_id: parsed.metadata.id,
-                trt_number: t.trt_number,
-                application: t.application,
-                fertiliser: t.fertiliser,
-                product: t.product,
-                rate: t.rate,
-                timing: t.timing,
-                sort_order: i + 1,
-              }))
+            // Bug #1: Use upsert-then-cleanup instead of delete-then-insert
+            // so a failed insert doesn't leave us with zero treatments
+            const newTreatments = parsed.treatments.map((t, i) => ({
+              trial_id: parsed.metadata.id,
+              trt_number: t.trt_number,
+              application: t.application,
+              fertiliser: t.fertiliser,
+              product: t.product,
+              rate: t.rate,
+              timing: t.timing,
+              sort_order: i + 1,
+            }))
+
+            const { error: trtError } = await supabase.from('treatments').upsert(
+              newTreatments,
+              { onConflict: 'trial_id,trt_number' }
             )
             if (trtError) throw trtError
+
+            // Remove stale treatments no longer in the new set
+            const newTrtNumbers = parsed.treatments.map(t => t.trt_number)
+            const { error: cleanupError } = await supabase
+              .from('treatments')
+              .delete()
+              .eq('trial_id', parsed.metadata.id)
+              .not('trt_number', 'in', `(${newTrtNumbers.join(',')})`)
+            if (cleanupError) {
+              console.error('Treatment cleanup failed:', cleanupError)
+            }
           }
 
           results.push({
@@ -167,10 +182,6 @@ export async function POST(request: NextRequest) {
           })
 
           if (dbError) throw dbError
-
-          await supabase.from('trial_data_files').upsert({
-            trial_id: targetTrialId, file_type: 'photo', has_data: true, last_updated: new Date().toISOString(),
-          })
 
           try {
             await supabase.from('upload_log').insert({
@@ -239,6 +250,16 @@ export async function POST(request: NextRequest) {
           })
         } catch (logErr) { console.error('upload_log insert failed:', logErr) }
       }
+    }
+
+    // Bug #7: Update photo tracking once after all photos, not per-photo in the loop
+    const hasPhotoSuccess = results.some(r => r.type === 'Photo' && r.status === 'success')
+    if (hasPhotoSuccess && trialId) {
+      try {
+        await supabase.from('trial_data_files').upsert({
+          trial_id: trialId, file_type: 'photo', has_data: true, last_updated: new Date().toISOString(),
+        })
+      } catch { /* best-effort tracking */ }
     }
 
     return NextResponse.json({ results, trialId })

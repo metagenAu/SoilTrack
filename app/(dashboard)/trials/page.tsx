@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import PageHeader from '@/components/layout/PageHeader'
 import TrialCard from '@/components/trials/TrialCard'
+import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import { Plus } from 'lucide-react'
 
@@ -46,10 +47,12 @@ export default async function TrialsPage() {
         label="TRIAL MANAGEMENT"
         title="All Trials"
         action={
-          <Button size="sm">
-            <Plus size={14} />
-            Add Trial
-          </Button>
+          <Link href="/data-hub">
+            <Button size="sm">
+              <Plus size={14} />
+              Add Trial
+            </Button>
+          </Link>
         }
       />
 

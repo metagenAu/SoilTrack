@@ -22,6 +22,7 @@ interface UploadResult {
   records?: number
   rawUploadId?: string
   unmappedColumns?: string[]
+  fileType?: string
 }
 
 export default function SingleFileUpload({ trials }: { trials: { id: string; name: string }[] }) {
@@ -200,7 +201,7 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
           items={[{
             rawUploadId: result.rawUploadId,
             filename: file?.name || 'unknown',
-            fileType: fileType === 'auto' ? 'plotData' : fileType,
+            fileType: result.fileType || fileType,
             unmappedColumns: result.unmappedColumns,
           }]}
           onComplete={handleReviewComplete}

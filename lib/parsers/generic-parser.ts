@@ -269,6 +269,20 @@ function resolveValue(
   return col.type === 'number' ? null : col.type === 'date' ? null : ''
 }
 
+/** Try DD/MM/YYYY or D/M/YYYY format (common in AU/NZ agriculture data) */
+function parseDDMMYYYY(s: string): Date | null {
+  const m = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/)
+  if (!m) return null
+  const day = parseInt(m[1], 10)
+  const month = parseInt(m[2], 10)
+  const year = parseInt(m[3], 10)
+  // Validate ranges — prefer DD/MM (AU convention) for ambiguous dates
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+  const d = new Date(year, month - 1, day)
+  if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null
+  return d
+}
+
 function coerceValue(val: any, type: 'string' | 'number' | 'date'): any {
   if (val === undefined || val === null || val === '') {
     return type === 'string' ? '' : null
@@ -282,11 +296,17 @@ function coerceValue(val: any, type: 'string' | 'number' | 'date'): any {
   if (type === 'date') {
     const s = String(val).trim()
     if (!s) return null
-    // Try ISO parse
-    const d = new Date(s)
-    if (!isNaN(d.getTime())) {
-      return d.toISOString().split('T')[0]
+    // Try YYYY-MM-DD (ISO) first — unambiguous
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      const d = new Date(s)
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]
     }
+    // Try DD/MM/YYYY (AU locale convention)
+    const auDate = parseDDMMYYYY(s)
+    if (auDate) return auDate.toISOString().split('T')[0]
+    // Fallback: JS Date constructor for other formats
+    const d = new Date(s)
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]
     // Return as-is — the database will validate
     return s
   }
