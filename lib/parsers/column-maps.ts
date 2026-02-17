@@ -42,6 +42,14 @@ export interface ColumnMapConfig {
    * duplicate rows are collapsed before hitting the DB's ON CONFLICT clause.
    */
   naturalKeyFields: string[]
+  /**
+   * When true, extra columns that don't match any alias are accepted without
+   * triggering column review.  They are preserved in raw_data JSONB and
+   * can be rendered dynamically by the UI.  Useful for data types where
+   * the set of measurement columns is unpredictable (e.g. plot data with
+   * varying yield units, hyperspectral layers, etc.).
+   */
+  allowExtraColumns?: boolean
 }
 
 export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
@@ -83,6 +91,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
     tableName: 'plot_data',
     fileType: 'plotData',
     pivotMode: 'none',
+    allowExtraColumns: true,
     identityColumns: [
       { dbField: 'plot', aliases: ['plot', 'plot no', 'plot_no', 'plotno', 'plot number'], type: 'string' },
       { dbField: 'trt_number', aliases: ['trt', 'treatment', 'trt_number', 'trt_no', 'treatment_number', 'treatment number'], type: 'number' },
@@ -93,6 +102,10 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
       { dbField: 'plant_count', aliases: ['plant_count', 'plant count', 'plants', 'plantcount', 'plant_no', 'plant no'], type: 'number' },
       { dbField: 'vigour', aliases: ['vigour', 'vigor', 'vigour_score', 'vigor_score'], type: 'number' },
       { dbField: 'disease_score', aliases: ['disease', 'disease_score', 'disease score', 'diseasescore'], type: 'number' },
+    ],
+    extraIdentityAliases: [
+      'row', 'column', 'col', 'uid',
+      'application', 'fertiliser', 'fertilizer', 'product',
     ],
     trialIdAliases: ['trial', 'trial id', 'trial_id', 'trial no', 'trial no.', 'trial number', 'trial code'],
     naturalKeyFields: ['plot', 'trt_number', 'rep'],
