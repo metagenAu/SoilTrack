@@ -33,7 +33,7 @@ export interface ColumnMapConfig {
   unitPattern?: RegExp
   /**
    * Column header aliases used to auto-detect the trial ID from file content.
-   * Soil Health → grower name, Chemistry → property, Plot → trial.
+   * Soil Health → property, Chemistry → grower name, Plot → trial.
    */
   trialIdAliases?: string[]
 }
@@ -53,7 +53,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
       { dbField: 'longitude', aliases: ['longitude', 'lng', 'lon', 'long'], type: 'number' },
     ],
     valueColumns: [],
-    trialIdAliases: ['grower', 'grower name', 'grower_name'],
+    trialIdAliases: ['property', 'farm', 'site'],
   },
 
   soilChemistry: {
@@ -67,7 +67,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
     ],
     extraIdentityAliases: ['barcode', 'bar_code', 'bar code', 'property', 'farm', 'site'],
     unitPattern: /\(([^)]+)\)/,
-    trialIdAliases: ['property', 'farm', 'site'],
+    trialIdAliases: ['grower', 'grower name', 'grower_name'],
   },
 
   plotData: {
@@ -99,7 +99,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
     ],
     extraIdentityAliases: [],
     unitPattern: /\(([^)]+)\)/,
-    trialIdAliases: ['property', 'farm', 'site'],
+    trialIdAliases: ['grower', 'grower name', 'grower_name'],
   },
 
   sampleMetadata: {
@@ -122,7 +122,7 @@ export const COLUMN_MAPS: Record<string, ColumnMapConfig> = {
  * Extract a trial ID from raw parsed rows by looking for the first non-empty value
  * in a column matching the file type's trialIdAliases.
  *
- * Soil Health → grower name, Chemistry → property, Plot → trial.
+ * Soil Health → property, Chemistry → grower name, Plot → trial.
  */
 export function extractTrialId(
   rows: Record<string, any>[],

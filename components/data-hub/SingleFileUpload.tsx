@@ -105,7 +105,7 @@ export default function SingleFileUpload({ trials }: { trials: { id: string; nam
           ))}
         </select>
         <p className="text-xs text-brand-grey-1 mt-1">
-          Leave blank to auto-detect: grower name (Soil Health), property (Chemistry), or trial (Plot Data)
+          Leave blank to auto-detect: property (Soil Health), grower name (Chemistry), or trial (Plot Data)
         </p>
       </div>
 
