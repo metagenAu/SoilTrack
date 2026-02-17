@@ -18,7 +18,7 @@ CREATE UNIQUE INDEX ux_soil_chemistry_natural
     trial_id,
     COALESCE(barcode, '__null__'),
     COALESCE(sample_no, '__null__'),
-    COALESCE(date::text, '__null__'),
+    COALESCE(date, '1900-01-01'::date),
     COALESCE(metric, '__null__')
   );
 
@@ -28,7 +28,7 @@ CREATE UNIQUE INDEX ux_tissue_chemistry_natural
     trial_id,
     COALESCE(barcode, '__null__'),
     COALESCE(sample_no, '__null__'),
-    COALESCE(date::text, '__null__'),
+    COALESCE(date, '1900-01-01'::date),
     COALESCE(tissue_type, '__null__'),
     COALESCE(metric, '__null__')
   );
@@ -40,7 +40,7 @@ CREATE UNIQUE INDEX ux_sample_metadata_natural
     COALESCE(assay_type, '__null__'),
     COALESCE(barcode, '__null__'),
     COALESCE(sample_no, '__null__'),
-    COALESCE(date::text, '__null__'),
+    COALESCE(date, '1900-01-01'::date),
     COALESCE(metric, '__null__')
   );
 
@@ -82,7 +82,7 @@ BEGIN
       CASE WHEN r->>'longitude' IS NOT NULL AND r->>'longitude' != '' THEN (r->>'longitude')::decimal ELSE NULL END,
       r->'raw_data'
     FROM jsonb_array_elements(p_rows) AS r
-    ON CONFLICT (trial_id, COALESCE(sample_no, '__null__'), COALESCE(date::text, '__null__'), COALESCE(property, '__null__'), COALESCE(block, '__null__'))
+    ON CONFLICT (trial_id, COALESCE(sample_no, '__null__'), COALESCE(date, '1900-01-01'::date), COALESCE(property, '__null__'), COALESCE(block, '__null__'))
     DO UPDATE SET
       barcode = EXCLUDED.barcode,
       latitude = EXCLUDED.latitude,
@@ -103,7 +103,7 @@ BEGIN
       COALESCE(r->>'unit', ''),
       r->'raw_data'
     FROM jsonb_array_elements(p_rows) AS r
-    ON CONFLICT (trial_id, COALESCE(barcode, '__null__'), COALESCE(sample_no, '__null__'), COALESCE(date::text, '__null__'), COALESCE(metric, '__null__'))
+    ON CONFLICT (trial_id, COALESCE(barcode, '__null__'), COALESCE(sample_no, '__null__'), COALESCE(date, '1900-01-01'::date), COALESCE(metric, '__null__'))
     DO UPDATE SET
       block = EXCLUDED.block,
       value = EXCLUDED.value,
@@ -146,7 +146,7 @@ BEGIN
       COALESCE(r->>'unit', ''),
       r->'raw_data'
     FROM jsonb_array_elements(p_rows) AS r
-    ON CONFLICT (trial_id, COALESCE(barcode, '__null__'), COALESCE(sample_no, '__null__'), COALESCE(date::text, '__null__'), COALESCE(tissue_type, '__null__'), COALESCE(metric, '__null__'))
+    ON CONFLICT (trial_id, COALESCE(barcode, '__null__'), COALESCE(sample_no, '__null__'), COALESCE(date, '1900-01-01'::date), COALESCE(tissue_type, '__null__'), COALESCE(metric, '__null__'))
     DO UPDATE SET
       value = EXCLUDED.value,
       unit = EXCLUDED.unit,
@@ -168,7 +168,7 @@ BEGIN
       COALESCE(r->>'unit', ''),
       r->'raw_data'
     FROM jsonb_array_elements(p_rows) AS r
-    ON CONFLICT (trial_id, COALESCE(assay_type, '__null__'), COALESCE(barcode, '__null__'), COALESCE(sample_no, '__null__'), COALESCE(date::text, '__null__'), COALESCE(metric, '__null__'))
+    ON CONFLICT (trial_id, COALESCE(assay_type, '__null__'), COALESCE(barcode, '__null__'), COALESCE(sample_no, '__null__'), COALESCE(date, '1900-01-01'::date), COALESCE(metric, '__null__'))
     DO UPDATE SET
       block = EXCLUDED.block,
       treatment = EXCLUDED.treatment,

@@ -29,11 +29,11 @@ CREATE POLICY "Authenticated users full access" ON raw_uploads
 
 -- soil_health_samples: one record per sample per date per trial
 CREATE UNIQUE INDEX IF NOT EXISTS ux_soil_health_natural
-  ON soil_health_samples (trial_id, COALESCE(sample_no, ''), COALESCE(date::text, ''));
+  ON soil_health_samples (trial_id, COALESCE(sample_no, ''), COALESCE(date, '1900-01-01'::date));
 
 -- soil_chemistry: one value per sample+metric+date per trial
 CREATE UNIQUE INDEX IF NOT EXISTS ux_soil_chemistry_natural
-  ON soil_chemistry (trial_id, COALESCE(sample_no, ''), COALESCE(date::text, ''), COALESCE(metric, ''));
+  ON soil_chemistry (trial_id, COALESCE(sample_no, ''), COALESCE(date, '1900-01-01'::date), COALESCE(metric, ''));
 
 -- plot_data: one record per plot+treatment+rep per trial
 CREATE UNIQUE INDEX IF NOT EXISTS ux_plot_data_natural
@@ -41,7 +41,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_plot_data_natural
 
 -- tissue_chemistry: one value per sample+tissue+metric+date per trial
 CREATE UNIQUE INDEX IF NOT EXISTS ux_tissue_chemistry_natural
-  ON tissue_chemistry (trial_id, COALESCE(sample_no, ''), COALESCE(date::text, ''), COALESCE(tissue_type, ''), COALESCE(metric, ''));
+  ON tissue_chemistry (trial_id, COALESCE(sample_no, ''), COALESCE(date, '1900-01-01'::date), COALESCE(tissue_type, ''), COALESCE(metric, ''));
 
 -- sample_metadata: one value per assay+sample+metric per trial
 CREATE UNIQUE INDEX IF NOT EXISTS ux_sample_metadata_natural
@@ -88,7 +88,7 @@ BEGIN
       CASE WHEN r->>'longitude' IS NOT NULL AND r->>'longitude' != '' THEN (r->>'longitude')::decimal ELSE NULL END,
       r->'raw_data'
     FROM jsonb_array_elements(p_rows) AS r
-    ON CONFLICT (trial_id, COALESCE(sample_no, ''), COALESCE(date::text, ''))
+    ON CONFLICT (trial_id, COALESCE(sample_no, ''), COALESCE(date, '1900-01-01'::date))
     DO UPDATE SET
       property = EXCLUDED.property,
       block = EXCLUDED.block,
@@ -110,7 +110,7 @@ BEGIN
       COALESCE(r->>'unit', ''),
       r->'raw_data'
     FROM jsonb_array_elements(p_rows) AS r
-    ON CONFLICT (trial_id, COALESCE(sample_no, ''), COALESCE(date::text, ''), COALESCE(metric, ''))
+    ON CONFLICT (trial_id, COALESCE(sample_no, ''), COALESCE(date, '1900-01-01'::date), COALESCE(metric, ''))
     DO UPDATE SET
       block = EXCLUDED.block,
       value = EXCLUDED.value,
@@ -152,7 +152,7 @@ BEGIN
       COALESCE(r->>'unit', ''),
       r->'raw_data'
     FROM jsonb_array_elements(p_rows) AS r
-    ON CONFLICT (trial_id, COALESCE(sample_no, ''), COALESCE(date::text, ''), COALESCE(tissue_type, ''), COALESCE(metric, ''))
+    ON CONFLICT (trial_id, COALESCE(sample_no, ''), COALESCE(date, '1900-01-01'::date), COALESCE(tissue_type, ''), COALESCE(metric, ''))
     DO UPDATE SET
       value = EXCLUDED.value,
       unit = EXCLUDED.unit,
