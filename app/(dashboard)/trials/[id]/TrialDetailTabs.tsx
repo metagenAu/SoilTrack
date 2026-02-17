@@ -10,6 +10,7 @@ import MetadataTable from '@/components/trials/MetadataTable'
 import PhotosTab from '@/components/trials/PhotosTab'
 import TrialMap from '@/components/trials/TrialMapWrapper'
 import StatCard from '@/components/ui/StatCard'
+import EditableField from '@/components/trials/EditableField'
 
 interface TrialDetailTabsProps {
   trial: any
@@ -66,49 +67,49 @@ export default function TrialDetailTabs({
           <div className="card">
             <p className="signpost-label mb-3">TRIAL DETAILS</p>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
                 <dt className="text-brand-grey-1">Trial ID</dt>
                 <dd className="font-mono font-medium">{trial.id}</dd>
               </div>
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
                 <dt className="text-brand-grey-1">Grower</dt>
-                <dd>{trial.grower || '—'}</dd>
+                <dd><EditableField trialId={trial.id} field="grower" value={trial.grower} /></dd>
               </div>
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
                 <dt className="text-brand-grey-1">Location</dt>
-                <dd>{trial.location || '—'}</dd>
+                <dd><EditableField trialId={trial.id} field="location" value={trial.location} /></dd>
               </div>
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
                 <dt className="text-brand-grey-1">GPS</dt>
-                <dd className="font-mono text-xs">{trial.gps || '—'}</dd>
+                <dd><EditableField trialId={trial.id} field="gps" value={trial.gps} className="font-mono text-xs" /></dd>
               </div>
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
                 <dt className="text-brand-grey-1">Crop</dt>
-                <dd>{trial.crop || '—'}</dd>
+                <dd><EditableField trialId={trial.id} field="crop" value={trial.crop} /></dd>
               </div>
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
                 <dt className="text-brand-grey-1">Trial Type</dt>
-                <dd>{trial.trial_type || '—'}</dd>
+                <dd><EditableField trialId={trial.id} field="trial_type" value={trial.trial_type} /></dd>
               </div>
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
                 <dt className="text-brand-grey-1">Contact</dt>
-                <dd>{trial.contact || '—'}</dd>
+                <dd><EditableField trialId={trial.id} field="contact" value={trial.contact} /></dd>
               </div>
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
                 <dt className="text-brand-grey-1">Planting Date</dt>
-                <dd>{formatDate(trial.planting_date)}</dd>
+                <dd><EditableField trialId={trial.id} field="planting_date" value={trial.planting_date} type="date" /></dd>
               </div>
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
                 <dt className="text-brand-grey-1">Harvest Date</dt>
-                <dd>{formatDate(trial.harvest_date)}</dd>
+                <dd><EditableField trialId={trial.id} field="harvest_date" value={trial.harvest_date} type="date" /></dd>
               </div>
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
                 <dt className="text-brand-grey-1">Treatments</dt>
-                <dd>{trial.num_treatments}</dd>
+                <dd><EditableField trialId={trial.id} field="num_treatments" value={trial.num_treatments} type="number" /></dd>
               </div>
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
                 <dt className="text-brand-grey-1">Reps</dt>
-                <dd>{trial.reps}</dd>
+                <dd><EditableField trialId={trial.id} field="reps" value={trial.reps} type="number" /></dd>
               </div>
             </dl>
           </div>
