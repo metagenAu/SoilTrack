@@ -14,6 +14,7 @@ const TYPE_LABELS: Record<FileClassification, string> = {
   tissueChemistry: 'Tissue Chemistry',
   sampleMetadata: 'Assay Results',
   photo: 'Photo',
+  gis: 'GIS',
   unknown: 'Unknown',
 }
 

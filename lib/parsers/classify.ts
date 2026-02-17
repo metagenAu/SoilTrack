@@ -6,6 +6,7 @@ export type FileClassification =
   | 'tissueChemistry'
   | 'sampleMetadata'
   | 'photo'
+  | 'gis'
   | 'unknown'
 
 export function classifyFile(filename: string): FileClassification {
@@ -31,6 +32,9 @@ export function classifyFile(filename: string): FileClassification {
   }
   if (/\.(jpg|jpeg|png|webp)$/i.test(lower)) {
     return 'photo'
+  }
+  if (/\.(shp|dbf|shx|prj|kml|kmz|geojson)$/i.test(lower)) {
+    return 'gis'
   }
   return 'unknown'
 }
