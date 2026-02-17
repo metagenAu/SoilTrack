@@ -233,6 +233,3 @@ EXCEPTION WHEN OTHERS THEN
   );
 END;
 $$;
-
--- Reload PostgREST schema cache so the new function is immediately available
-NOTIFY pgrst, 'reload schema';
