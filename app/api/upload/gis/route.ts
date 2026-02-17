@@ -15,12 +15,13 @@ export async function POST(request: NextRequest) {
   const trialId = formData.get('trial_id') as string
   const name = formData.get('name') as string
   const fileType = formData.get('file_type') as string
-  const geojsonStr = formData.get('geojson') as string
+  const geojsonPath = formData.get('geojson_path') as string | null
+  const geojsonStr = formData.get('geojson') as string | null
   const storagePath = formData.get('storage_path') as string | null
 
-  if (!trialId || !name || !fileType || !geojsonStr) {
+  if (!trialId || !name || !fileType || (!geojsonPath && !geojsonStr)) {
     return NextResponse.json(
-      { error: 'trial_id, name, file_type, and geojson are required' },
+      { error: 'trial_id, name, file_type, and geojson or geojson_path are required' },
       { status: 400 }
     )
   }
@@ -34,10 +35,23 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Parse and validate GeoJSON
+  // Load and validate GeoJSON — either from Storage (large files) or inline (small files)
   let geojson: any
   try {
-    geojson = JSON.parse(geojsonStr)
+    if (geojsonPath) {
+      const { data: blob, error: downloadError } = await supabase.storage
+        .from('trial-gis')
+        .download(geojsonPath)
+      if (downloadError || !blob) {
+        return NextResponse.json(
+          { error: `Failed to read GeoJSON from storage: ${downloadError?.message}` },
+          { status: 500 }
+        )
+      }
+      geojson = JSON.parse(await blob.text())
+    } else {
+      geojson = JSON.parse(geojsonStr!)
+    }
     if (geojson.type !== 'FeatureCollection' || !Array.isArray(geojson.features)) {
       throw new Error('Must be a GeoJSON FeatureCollection')
     }

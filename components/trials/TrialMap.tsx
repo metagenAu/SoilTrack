@@ -172,18 +172,36 @@ export default function TrialMap({ trial, samples, gisLayers: initialLayers, sup
         throw new Error(`File storage failed: ${storageError.message}`)
       }
 
-      // Send only metadata + GeoJSON to the API route (no raw file)
+      // Upload parsed GeoJSON to storage so the API route can read it without
+      // hitting Next.js / platform request body size limits on large shapefiles.
+      const geojsonPath = `${trial.id}/${layerId}.geojson`
+      const geojsonBlob = new Blob([JSON.stringify(geojson)], { type: 'application/json' })
+      const { error: geojsonStorageError } = await supabase.storage
+        .from('trial-gis')
+        .upload(geojsonPath, geojsonBlob, {
+          contentType: 'application/json',
+          upsert: false,
+        })
+
+      if (geojsonStorageError) {
+        // Clean up the raw file since we can't proceed
+        await supabase.storage.from('trial-gis').remove([storagePath])
+        throw new Error(`GeoJSON storage failed: ${geojsonStorageError.message}`)
+      }
+
+      // Send only small metadata to the API route (no large GeoJSON in the body)
       const formData = new FormData()
       formData.append('trial_id', trial.id)
       formData.append('name', file.name.replace(/\.[^.]+$/, ''))
       formData.append('file_type', fileType)
-      formData.append('geojson', JSON.stringify(geojson))
+      formData.append('geojson_path', geojsonPath)
+      formData.append('feature_count', String(geojson.features.length))
       formData.append('storage_path', storagePath)
 
       const res = await fetch('/api/upload/gis', { method: 'POST', body: formData })
       if (!res.ok) {
-        // Clean up the uploaded file since the API call failed
-        await supabase.storage.from('trial-gis').remove([storagePath])
+        // Clean up uploaded files since the API call failed
+        await supabase.storage.from('trial-gis').remove([storagePath, geojsonPath])
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error || `Upload failed (${res.status})`)
       }
