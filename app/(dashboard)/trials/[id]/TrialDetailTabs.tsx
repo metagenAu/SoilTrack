@@ -22,6 +22,7 @@ interface TrialDetailTabsProps {
   metadata: any[]
   photos: any[]
   gisLayers: any[]
+  pointSets: any[]
   supabaseUrl: string
 }
 
@@ -37,6 +38,7 @@ export default function TrialDetailTabs({
   metadata,
   photos,
   gisLayers,
+  pointSets,
   supabaseUrl,
 }: TrialDetailTabsProps) {
   const [activeTab, setActiveTab] = useState('Summary')
@@ -164,6 +166,7 @@ export default function TrialDetailTabs({
             trial={trial}
             samples={samples}
             gisLayers={gisLayers}
+            pointSets={pointSets}
             supabaseUrl={supabaseUrl}
           />
         </div>
