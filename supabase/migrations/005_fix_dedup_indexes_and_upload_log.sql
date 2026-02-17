@@ -253,3 +253,9 @@ EXCEPTION WHEN OTHERS THEN
   );
 END;
 $$;
+
+-- Grant execute to authenticated role so PostgREST exposes it in the schema cache
+GRANT EXECUTE ON FUNCTION load_and_track(TEXT, TEXT, TEXT, TEXT, JSONB, UUID) TO authenticated;
+
+-- Reload PostgREST schema cache so the updated function is immediately available
+NOTIFY pgrst, 'reload schema';
