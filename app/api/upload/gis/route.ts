@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   const name = formData.get('name') as string
   const fileType = formData.get('file_type') as string
   const geojsonStr = formData.get('geojson') as string
-  const file = formData.get('file') as File | null
+  const storagePath = formData.get('storage_path') as string | null
 
   if (!trialId || !name || !fileType || !geojsonStr) {
     return NextResponse.json(
@@ -54,29 +54,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Trial not found' }, { status: 404 })
   }
 
-  // Store raw file in Supabase Storage (if provided)
-  const layerId = crypto.randomUUID()
-  let storagePath = `${trialId}/${layerId}`
-
-  if (file) {
-    const ext = file.name.split('.').pop()?.toLowerCase() || fileType
-    storagePath = `${trialId}/${layerId}.${ext}`
-
-    const buffer = await file.arrayBuffer()
-    const { error: storageError } = await supabase.storage
-      .from('trial-gis')
-      .upload(storagePath, buffer, {
-        contentType: file.type || 'application/octet-stream',
-        upsert: false,
-      })
-
-    if (storageError) {
-      return NextResponse.json(
-        { error: `Storage upload failed: ${storageError.message}` },
-        { status: 500 }
-      )
-    }
-  }
+  // The raw file is uploaded directly to Supabase Storage from the client
+  // to avoid Next.js API route body size limits on large shapefiles.
+  // The client provides the storage_path after uploading.
+  const finalStoragePath = storagePath || `${trialId}/${crypto.randomUUID()}`
 
   // Insert layer record
   const { data: layer, error: dbError } = await supabase
@@ -85,7 +66,7 @@ export async function POST(request: NextRequest) {
       trial_id: trialId,
       name,
       file_type: fileType,
-      storage_path: storagePath,
+      storage_path: finalStoragePath,
       geojson,
       feature_count: geojson.features.length,
     })
