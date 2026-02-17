@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import PageHeader from '@/components/layout/PageHeader'
 import StatusPill from '@/components/ui/StatusPill'
+import TrialStatusToggle from '@/components/trials/TrialStatusToggle'
 import DataBadge from '@/components/ui/DataBadge'
 import StatCard from '@/components/ui/StatCard'
 import TreatmentsTable from '@/components/trials/TreatmentsTable'
@@ -93,7 +94,7 @@ export default async function TrialDetailPage({
           <div>
             <div className="flex items-center gap-3 mb-2">
               <span className="font-mono text-lg font-semibold text-brand-black/60">{trial.id}</span>
-              <StatusPill status={trial.status} />
+              <TrialStatusToggle trialId={trial.id} currentStatus={trial.status} />
             </div>
             <h1 className="text-xl font-bold text-brand-black mb-1">{trial.name}</h1>
             <div className="flex items-center gap-4 text-sm text-brand-grey-1">
