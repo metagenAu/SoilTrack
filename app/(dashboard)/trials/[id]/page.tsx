@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic'
 async function getTrialData(id: string) {
   const supabase = createServerSupabaseClient()
 
-  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemRes, tissueRes, metadataRes, photosRes, gisRes] = await Promise.all([
+  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemRes, tissueRes, metadataRes, photosRes, gisRes, pointSetsRes] = await Promise.all([
     supabase.from('trials').select('*').eq('id', id).single(),
     supabase.from('treatments').select('*').eq('trial_id', id).order('sort_order'),
     supabase.from('soil_health_samples').select('*').eq('trial_id', id).order('sample_no'),
@@ -31,6 +31,7 @@ async function getTrialData(id: string) {
     supabase.from('sample_metadata').select('*').eq('trial_id', id).order('sample_no'),
     supabase.from('trial_photos').select('*').eq('trial_id', id).order('created_at', { ascending: false }),
     supabase.from('trial_gis_layers').select('*').eq('trial_id', id).order('created_at'),
+    supabase.from('sample_point_sets').select('*, sample_points(*), point_data_layers(*)').eq('trial_id', id).order('created_at'),
   ])
 
   if (trialRes.error || !trialRes.data) return null
@@ -70,6 +71,7 @@ async function getTrialData(id: string) {
     metadata: metadataRes.data || [],
     photos: photosRes.data || [],
     gisLayers: gisRes.data || [],
+    pointSets: pointSetsRes.data || [],
   }
 }
 
@@ -83,7 +85,7 @@ export default async function TrialDetailPage({
 
   if (!data) notFound()
 
-  const { trial, treatments, samples, plots, log, dataCoverage, metadata, photos, gisLayers } = data
+  const { trial, treatments, samples, plots, log, dataCoverage, metadata, photos, gisLayers, pointSets } = data
 
   return (
     <div>
@@ -120,6 +122,7 @@ export default async function TrialDetailPage({
           <DataBadge label="Assay Results" hasData={dataCoverage.sampleMetadata} />
           <DataBadge label="Photos" hasData={dataCoverage.photo || photos.length > 0} />
           <DataBadge label="GIS" hasData={dataCoverage.gis || gisLayers.length > 0} />
+          <DataBadge label="Sample Points" hasData={dataCoverage.samplePoints || pointSets.length > 0} />
         </div>
       </div>
 
@@ -134,6 +137,7 @@ export default async function TrialDetailPage({
         metadata={metadata}
         photos={photos}
         gisLayers={gisLayers}
+        pointSets={pointSets}
         supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
       />
     </div>
