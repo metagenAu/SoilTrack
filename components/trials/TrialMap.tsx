@@ -9,6 +9,9 @@ import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { detectGISFileType, parseGISFile, GIS_ACCEPT } from '@/lib/parsers/gis'
 
+const MAX_FILE_SIZE_MB = 50
+const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024
+
 import 'leaflet/dist/leaflet.css'
 
 // Fix Leaflet default marker icon issue with bundlers
@@ -138,7 +141,17 @@ export default function TrialMap({ trial, samples, gisLayers: initialLayers, sup
       return
     }
 
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum size is ${MAX_FILE_SIZE_MB} MB.`)
+      return
+    }
+
     setUploading(true)
+    const supabase = createClient()
+    const layerId = crypto.randomUUID()
+    const ext = file.name.split('.').pop()?.toLowerCase() || fileType
+    const storagePath = `${trial.id}/${layerId}.${ext}`
+
     try {
       // Parse client-side
       const geojson = await parseGISFile(file, fileType)
@@ -147,16 +160,30 @@ export default function TrialMap({ trial, samples, gisLayers: initialLayers, sup
         throw new Error('No features found in the uploaded file.')
       }
 
-      // Upload to API
+      // Upload raw file directly to Supabase Storage (bypasses API route body limit)
+      const { error: storageError } = await supabase.storage
+        .from('trial-gis')
+        .upload(storagePath, file, {
+          contentType: file.type || 'application/octet-stream',
+          upsert: false,
+        })
+
+      if (storageError) {
+        throw new Error(`File storage failed: ${storageError.message}`)
+      }
+
+      // Send only metadata + GeoJSON to the API route (no raw file)
       const formData = new FormData()
       formData.append('trial_id', trial.id)
       formData.append('name', file.name.replace(/\.[^.]+$/, ''))
       formData.append('file_type', fileType)
       formData.append('geojson', JSON.stringify(geojson))
-      formData.append('file', file)
+      formData.append('storage_path', storagePath)
 
       const res = await fetch('/api/upload/gis', { method: 'POST', body: formData })
       if (!res.ok) {
+        // Clean up the uploaded file since the API call failed
+        await supabase.storage.from('trial-gis').remove([storagePath])
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error || `Upload failed (${res.status})`)
       }
