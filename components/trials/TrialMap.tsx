@@ -165,7 +165,7 @@ export default function TrialMap({ trial, samples, gisLayers: initialLayers, sup
         .from('trial-gis')
         .upload(storagePath, file, {
           contentType: file.type || 'application/octet-stream',
-          upsert: false,
+          upsert: true,
         })
 
       if (storageError) {
@@ -180,7 +180,7 @@ export default function TrialMap({ trial, samples, gisLayers: initialLayers, sup
         .from('trial-gis')
         .upload(geojsonPath, geojsonBlob, {
           contentType: 'application/json',
-          upsert: false,
+          upsert: true,
         })
 
       if (geojsonStorageError) {
