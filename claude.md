@@ -99,18 +99,18 @@ Three roles: `admin`, `upload`, `readonly`. Checked server-side via `getUserRole
 
 All data access goes through the Supabase JS client — no ORM. Key tables: `trials`, `treatments`, `soil_health_samples`, `soil_chemistry`, `plot_data`, `tissue_chemistry`, `sample_metadata`, `trial_photos`, `trial_gis_layers`, `raw_uploads`, `upload_log`, `trial_data_files`, `profiles`. The `load_and_track()` RPC function handles atomic upserts with natural-key deduplication.
 
-Migrations are in `supabase/migrations/` numbered 001–008. When adding new migrations, use the next sequential number.
+Migrations are in `supabase/migrations/` numbered 001–009. When adding new migrations, use the next sequential number.
 
 ### Data Model — Natural Keys
 
-`sample_no` is NOT a globally unique row identifier. It maps to a treatment/block (sample point), and the same sample point can be measured at **multiple timepoints**. Deduplication keys must always include `date`:
+`sample_no` is NOT a globally unique row identifier. It maps to a treatment/block (sample point), and the same sample point can be measured at **multiple timepoints**. `barcode` is the UID for each chemistry/tissue sample and is stored on all sample tables for cross-linking. Deduplication keys must always include `date` and `barcode`:
 
 | Table | Natural Key (dedup index) |
 |---|---|
 | `soil_health_samples` | `(trial_id, sample_no, date, property, block)` |
-| `soil_chemistry` | `(trial_id, sample_no, date, metric)` |
-| `tissue_chemistry` | `(trial_id, sample_no, date, tissue_type, metric)` |
-| `sample_metadata` | `(trial_id, assay_type, sample_no, date, metric)` |
+| `soil_chemistry` | `(trial_id, barcode, sample_no, date, metric)` |
+| `tissue_chemistry` | `(trial_id, barcode, sample_no, date, tissue_type, metric)` |
+| `sample_metadata` | `(trial_id, assay_type, barcode, sample_no, date, metric)` |
 | `plot_data` | `(trial_id, plot, trt_number, rep)` |
 
 ### API Routes

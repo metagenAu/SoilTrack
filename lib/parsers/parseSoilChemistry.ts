@@ -4,6 +4,7 @@ export interface SoilChemistryRow {
   sample_no: string
   date: string | null
   block: string
+  barcode: string
   metric: string
   value: number | null
   unit: string
@@ -28,9 +29,10 @@ export function parseSoilChemistry(csvText: string): SoilChemistryRow[] {
     const sampleNo = normalized['sampleno'] || normalized['sample_no'] || normalized['sample no'] || ''
     const date = normalized['date'] || null
     const block = normalized['block'] || ''
+    const barcode = normalized['barcode'] || normalized['bar_code'] || normalized['bar code'] || ''
 
     // Each non-metadata column is a metric
-    const metadataCols = new Set(['sampleno', 'sample_no', 'sample no', 'date', 'block', 'barcode', 'property'])
+    const metadataCols = new Set(['sampleno', 'sample_no', 'sample no', 'date', 'block', 'barcode', 'bar_code', 'bar code', 'property'])
     for (const [key, val] of Object.entries(row)) {
       const lk = key.toLowerCase().trim()
       if (metadataCols.has(lk) || !val) continue
@@ -46,6 +48,7 @@ export function parseSoilChemistry(csvText: string): SoilChemistryRow[] {
         sample_no: sampleNo,
         date,
         block,
+        barcode,
         metric,
         value: numVal,
         unit,
