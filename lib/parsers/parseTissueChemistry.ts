@@ -4,6 +4,7 @@ export interface TissueChemistryRow {
   sample_no: string
   date: string | null
   tissue_type: string
+  barcode: string
   metric: string
   value: number | null
   unit: string
@@ -26,8 +27,9 @@ export function parseTissueChemistry(buffer: ArrayBuffer): TissueChemistryRow[] 
     const sampleNo = normalized['sampleno'] || normalized['sample_no'] || normalized['sample no'] || ''
     const date = normalized['date'] || null
     const tissueType = normalized['tissue'] || normalized['tissue_type'] || normalized['tissue type'] || 'Unknown'
+    const barcode = normalized['barcode'] || normalized['bar_code'] || normalized['bar code'] || ''
 
-    const metadataCols = new Set(['sampleno', 'sample_no', 'sample no', 'date', 'tissue', 'tissue_type', 'tissue type'])
+    const metadataCols = new Set(['sampleno', 'sample_no', 'sample no', 'date', 'tissue', 'tissue_type', 'tissue type', 'barcode', 'bar_code', 'bar code'])
     for (const [key, val] of Object.entries(row)) {
       const lk = key.toLowerCase().trim()
       if (metadataCols.has(lk) || !val) continue
@@ -42,6 +44,7 @@ export function parseTissueChemistry(buffer: ArrayBuffer): TissueChemistryRow[] 
         sample_no: sampleNo,
         date,
         tissue_type: tissueType,
+        barcode,
         metric,
         value: numVal,
         unit,
