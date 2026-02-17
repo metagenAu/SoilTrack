@@ -152,10 +152,12 @@ export async function runPipeline(
 
     // For direct-mode parsers with unmapped columns, pause for user review
     // (Pivot-mode parsers treat unknown columns as metrics, so no review needed)
+    // (allowExtraColumns types store extras in raw_data — no review needed)
     if (
       parseResult.unmappedColumns.length > 0 &&
       config.pivotMode === 'none' &&
-      !options?.columnOverrides
+      !options?.columnOverrides &&
+      !config.allowExtraColumns
     ) {
       return {
         status: 'needs_review',
