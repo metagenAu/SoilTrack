@@ -82,3 +82,12 @@ CREATE POLICY "Admins can delete profiles"
   USING (
     (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin'
   );
+
+-- Seed admin users: ensure profile rows exist and set role to admin.
+-- If the user already has a profile row, update it. If not, create one
+-- by looking up the auth.users row by email.
+INSERT INTO public.profiles (id, email, role)
+  SELECT id, email, 'admin'
+  FROM auth.users
+  WHERE email IN ('chris@metagen.com.au', 'prue@metagen.com.au')
+ON CONFLICT (id) DO UPDATE SET role = 'admin';
