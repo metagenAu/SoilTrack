@@ -5,6 +5,7 @@ import { formatDate } from '@/lib/utils'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import { Plus } from 'lucide-react'
+import { useUserRole } from '@/components/providers/UserRoleProvider'
 
 interface LogEntry {
   id: string
@@ -24,6 +25,7 @@ export default function ManagementLog({ entries, trialId, onAdd }: ManagementLog
   const [showModal, setShowModal] = useState(false)
   const [newEntry, setNewEntry] = useState('')
   const [newDate, setNewDate] = useState('')
+  const { canUpload } = useUserRole()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -39,10 +41,12 @@ export default function ManagementLog({ entries, trialId, onAdd }: ManagementLog
     <div>
       <div className="flex items-center justify-between mb-4">
         <p className="signpost-label">Activity Log</p>
-        <Button size="sm" onClick={() => setShowModal(true)}>
-          <Plus size={14} />
-          Add Entry
-        </Button>
+        {canUpload && (
+          <Button size="sm" onClick={() => setShowModal(true)}>
+            <Plus size={14} />
+            Add Entry
+          </Button>
+        )}
       </div>
 
       {entries.length === 0 ? (

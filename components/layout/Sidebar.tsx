@@ -16,21 +16,25 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useUserRole } from '@/components/providers/UserRoleProvider'
 
 const navItems = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Data Hub', href: '/data-hub', icon: Database },
-  { label: 'Trials', href: '/trials', icon: FlaskConical },
-  { label: 'Clients', href: '/clients', icon: Users },
-  { label: 'Analytics', href: '/analytics', icon: PieChart },
-  { label: 'Analysis', href: '/analysis', icon: BarChart3 },
-  { label: 'Reports', href: '/reports', icon: FileText },
-  { label: 'Settings', href: '/settings', icon: Settings },
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, requiresUpload: false },
+  { label: 'Data Hub', href: '/data-hub', icon: Database, requiresUpload: true },
+  { label: 'Trials', href: '/trials', icon: FlaskConical, requiresUpload: false },
+  { label: 'Clients', href: '/clients', icon: Users, requiresUpload: false },
+  { label: 'Analytics', href: '/analytics', icon: PieChart, requiresUpload: false },
+  { label: 'Analysis', href: '/analysis', icon: BarChart3, requiresUpload: false },
+  { label: 'Reports', href: '/reports', icon: FileText, requiresUpload: false },
+  { label: 'Settings', href: '/settings', icon: Settings, requiresUpload: false },
 ]
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
+  const { canUpload } = useUserRole()
+
+  const visibleItems = navItems.filter(item => !item.requiresUpload || canUpload)
 
   return (
     <aside
@@ -60,7 +64,7 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 py-3 px-2 space-y-0.5">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const isActive =
             item.href === '/dashboard'
               ? pathname === '/dashboard'

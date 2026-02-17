@@ -1,4 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getUserRole, canUpload } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 import PageHeader from '@/components/layout/PageHeader'
 import DataHubClient from './DataHubClient'
 
@@ -19,6 +21,12 @@ async function getData() {
 }
 
 export default async function DataHubPage() {
+  const { role } = await getUserRole()
+
+  if (!canUpload(role)) {
+    redirect('/dashboard')
+  }
+
   const { trials, uploadLog } = await getData()
 
   return (
