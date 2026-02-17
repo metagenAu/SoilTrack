@@ -63,7 +63,15 @@ async function parseKMZ(file: File): Promise<FeatureCollection> {
 }
 
 async function parseShapefile(file: File): Promise<FeatureCollection> {
-  const shp = (await import('shpjs')).default
+  let shp: typeof import('shpjs').default
+  try {
+    shp = (await import('shpjs')).default
+  } catch {
+    throw new Error(
+      'Failed to load the shapefile parser. Please try refreshing the page. ' +
+      'If the problem persists, upload a .geojson file instead.'
+    )
+  }
   const buffer = await file.arrayBuffer()
   const result = await shp(buffer)
 
