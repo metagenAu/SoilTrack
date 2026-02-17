@@ -73,15 +73,20 @@ export async function GET(
 
   // CSV format
   // Build header: label, latitude, longitude, notes, ...data_layer_names
+  const csvEscape = (v: any): string => {
+    const s = String(v ?? '')
+    return `"${s.replace(/"/g, '""')}"`
+  }
+
   const layerNames = layers.map((l: any) => l.name)
   const header = ['label', 'latitude', 'longitude', 'notes', ...layerNames]
 
   const rows = points.map((p: any) => {
-    const row: string[] = [
+    const row: any[] = [
       p.label,
       p.latitude,
       p.longitude,
-      (p.notes || '').replace(/"/g, '""'),
+      p.notes || '',
     ]
 
     for (const layer of layers) {
@@ -89,10 +94,10 @@ export async function GET(
       row.push(val ? (val.value ?? val.text_value ?? '') : '')
     }
 
-    return row.map(v => `"${v}"`).join(',')
+    return row.map(csvEscape).join(',')
   })
 
-  const csv = [header.join(','), ...rows].join('\n')
+  const csv = [header.map(csvEscape).join(','), ...rows].join('\n')
 
   return new NextResponse(csv, {
     headers: {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { Plus, Trash2, Loader2, Layers, Upload, Satellite } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
@@ -26,14 +26,11 @@ export default function PointDataLayersPanel({
   onSetUpdate,
 }: PointDataLayersPanelProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showCSVModal, setShowCSVModal] = useState(false)
   const [layerName, setLayerName] = useState('')
   const [layerUnit, setLayerUnit] = useState('')
   const [layerSource, setLayerSource] = useState('manual')
   const [creating, setCreating] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [csvLayerId, setCsvLayerId] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   if (!activeSet) {
     return (
@@ -201,20 +198,23 @@ export default function PointDataLayersPanel({
                 </div>
                 <div className="flex items-center gap-1">
                   <input
-                    ref={fileInputRef}
                     type="file"
                     accept=".csv"
                     className="hidden"
+                    id={`csv-upload-${layer.id}`}
                     onChange={e => {
                       const file = e.target.files?.[0]
-                      if (file && csvLayerId) {
-                        handleCSVUpload(file, csvLayerId)
+                      if (file) {
+                        handleCSVUpload(file, layer.id)
                       }
                       e.target.value = ''
                     }}
                   />
                   <button
-                    onClick={() => { setCsvLayerId(layer.id); fileInputRef.current?.click() }}
+                    onClick={() => {
+                      const input = document.getElementById(`csv-upload-${layer.id}`) as HTMLInputElement
+                      input?.click()
+                    }}
                     className="p-1 rounded text-brand-grey-1 hover:text-meta-blue hover:bg-blue-50"
                     title="Upload values from CSV"
                   >

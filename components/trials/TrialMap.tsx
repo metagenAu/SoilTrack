@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, GeoJSON, CircleMarker, LayersControl, FeatureGroup, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import type { FeatureCollection } from 'geojson'
@@ -230,7 +230,13 @@ export default function TrialMap({ trial, samples, gisLayers: initialLayers, poi
     const set = pointSets.find(s => s.id === activeSetId)
     if (!set) return
 
-    const nextNum = set.sample_points.length + 1
+    // Find the highest existing SP-NNN number to avoid label collisions after deletions
+    let maxNum = 0
+    for (const p of set.sample_points) {
+      const match = p.label.match(/^SP-(\d+)$/)
+      if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10))
+    }
+    const nextNum = maxNum + 1
     const label = `SP-${String(nextNum).padStart(3, '0')}`
 
     setSaving(true)
