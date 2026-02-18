@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic'
 async function getTrialData(id: string) {
   const supabase = createServerSupabaseClient()
 
-  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemRes, tissueRes, metadataRes, photosRes, gisRes, customLayersRes] = await Promise.all([
+  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemRes, tissueRes, metadataRes, photosRes, gisRes, customLayersRes, linkedFieldsRes, allFieldsRes] = await Promise.all([
     supabase.from('trials').select('*').eq('id', id).single(),
     supabase.from('treatments').select('*').eq('trial_id', id).order('sort_order'),
     supabase.from('soil_health_samples').select('*').eq('trial_id', id).order('sample_no'),
@@ -34,6 +34,8 @@ async function getTrialData(id: string) {
     supabase.from('trial_photos').select('*').eq('trial_id', id).order('created_at', { ascending: false }),
     supabase.from('trial_gis_layers').select('*').eq('trial_id', id).order('created_at'),
     supabase.from('custom_map_layers').select('*').eq('trial_id', id).order('created_at'),
+    supabase.from('field_trials').select('id, field_id, fields(id, name, farm, region)').eq('trial_id', id),
+    supabase.from('fields').select('id, name, farm, region').order('name'),
   ])
 
   if (trialRes.error || !trialRes.data) return null
@@ -75,6 +77,8 @@ async function getTrialData(id: string) {
     photos: photosRes.data || [],
     gisLayers: gisRes.data || [],
     customLayers: customLayersRes.data || [],
+    linkedFields: linkedFieldsRes.data || [],
+    allFields: allFieldsRes.data || [],
   }
 }
 
@@ -88,7 +92,7 @@ export default async function TrialDetailPage({
 
   if (!data) notFound()
 
-  const { trial, treatments, samples, plots, log, dataCoverage, soilChemistry, metadata, photos, gisLayers, customLayers } = data
+  const { trial, treatments, samples, plots, log, dataCoverage, soilChemistry, metadata, photos, gisLayers, customLayers, linkedFields, allFields } = data
 
   return (
     <div>
@@ -144,6 +148,8 @@ export default async function TrialDetailPage({
         gisLayers={gisLayers}
         customLayers={customLayers}
         supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
+        linkedFields={linkedFields}
+        allFields={allFields}
       />
     </div>
   )

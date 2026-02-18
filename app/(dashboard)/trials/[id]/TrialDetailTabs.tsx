@@ -11,6 +11,7 @@ import PhotosTab from '@/components/trials/PhotosTab'
 import TrialMap from '@/components/trials/TrialMapWrapper'
 import StatCard from '@/components/ui/StatCard'
 import EditableField from '@/components/trials/EditableField'
+import TrialFieldLink from '@/components/trials/TrialFieldLink'
 
 interface TrialDetailTabsProps {
   trial: any
@@ -25,6 +26,8 @@ interface TrialDetailTabsProps {
   gisLayers: any[]
   customLayers?: any[]
   supabaseUrl: string
+  linkedFields?: any[]
+  allFields?: any[]
 }
 
 const tabs = ['Summary', 'Treatments', 'Soil Health', 'Plot Data', 'Assay Results', 'Photos', 'Map', 'Management']
@@ -42,6 +45,8 @@ export default function TrialDetailTabs({
   gisLayers,
   customLayers = [],
   supabaseUrl,
+  linkedFields = [],
+  allFields = [],
 }: TrialDetailTabsProps) {
   const [activeTab, setActiveTab] = useState('Summary')
 
@@ -127,6 +132,14 @@ export default function TrialDetailTabs({
               <StatCard label="ASSAY RESULTS" value={metadata.length} borderColor="#DCDDDF" />
               <StatCard label="PHOTOS" value={photos.length} borderColor="#B9BCBF" />
               <StatCard label="LOG ENTRIES" value={log.length} borderColor="#DCDDDF" />
+            </div>
+
+            <div className="card mt-4">
+              <TrialFieldLink
+                trialId={trial.id}
+                linkedFields={linkedFields}
+                allFields={allFields}
+              />
             </div>
           </div>
         </div>

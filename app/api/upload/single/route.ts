@@ -5,6 +5,7 @@ import { parseTrialSummary } from '@/lib/parsers/parseTrialSummary'
 import { runPipeline, parseRawContent } from '@/lib/upload-pipeline'
 import { COLUMN_MAPS, extractTrialId } from '@/lib/parsers/column-maps'
 import { getUserRole, canUpload } from '@/lib/auth'
+import { autoLinkTrialToField } from '@/lib/fields'
 
 export const maxDuration = 60
 
@@ -52,6 +53,8 @@ export async function POST(request: NextRequest) {
           { id: detected, name: detected },
           { onConflict: 'id', ignoreDuplicates: true }
         )
+        // Auto-link trial to a field (creates one if needed)
+        autoLinkTrialToField(supabase, detected).catch(() => {})
       }
     }
   }
@@ -89,6 +92,9 @@ export async function POST(request: NextRequest) {
       })
 
       if (trialError) throw trialError
+
+      // Auto-link trial to a field (creates one if needed)
+      autoLinkTrialToField(supabase, trialId).catch(() => {})
 
       if (parsed.treatments.length > 0) {
         // Bug #1: Use upsert-then-cleanup instead of delete-then-insert

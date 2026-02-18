@@ -5,6 +5,7 @@ import { parseTrialSummary } from '@/lib/parsers/parseTrialSummary'
 import { runPipeline, parseRawContent } from '@/lib/upload-pipeline'
 import { COLUMN_MAPS, extractTrialId } from '@/lib/parsers/column-maps'
 import { getUserRole, canUpload } from '@/lib/auth'
+import { autoLinkTrialToField } from '@/lib/fields'
 
 export const maxDuration = 60
 
@@ -144,6 +145,9 @@ export async function POST(request: NextRequest) {
             }
           }
 
+          // Auto-link trial to a field (creates one if needed)
+          autoLinkTrialToField(supabase, parsed.metadata.id).catch(() => {})
+
           results.push({
             filename,
             type: typeLabel,
@@ -231,6 +235,8 @@ export async function POST(request: NextRequest) {
               { onConflict: 'id', ignoreDuplicates: true }
             )
             trialId = targetTrialId
+            // Auto-link trial to a field (creates one if needed)
+            autoLinkTrialToField(supabase, targetTrialId).catch(() => {})
           }
 
           const pipelineResult = await runPipeline(

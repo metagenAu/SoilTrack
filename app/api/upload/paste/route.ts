@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { runPipeline, parseRawContent } from '@/lib/upload-pipeline'
 import { COLUMN_MAPS, extractTrialId } from '@/lib/parsers/column-maps'
 import { getUserRole, canUpload } from '@/lib/auth'
+import { autoLinkTrialToField } from '@/lib/fields'
 
 export const maxDuration = 60
 
@@ -40,6 +41,8 @@ export async function POST(request: NextRequest) {
           { id: detected, name: detected },
           { onConflict: 'id', ignoreDuplicates: true }
         )
+        // Auto-link trial to a field (creates one if needed)
+        autoLinkTrialToField(supabase, detected).catch(() => {})
       }
     }
   }
