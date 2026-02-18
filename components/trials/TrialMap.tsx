@@ -7,7 +7,7 @@ import type { FeatureCollection } from 'geojson'
 import { Upload, Trash2, Loader2, MapPin, Activity, FileSpreadsheet, Grid3X3 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
-import { detectGISFileType, parseGISFile, GIS_ACCEPT } from '@/lib/parsers/gis'
+import { detectGISFileType, parseGISFile, sanitizeFeatures, GIS_ACCEPT } from '@/lib/parsers/gis'
 
 const MAX_FILE_SIZE_MB = 50
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024
@@ -478,9 +478,20 @@ export default function TrialMap({
     return pts
   }, [trialCoord, samplePoints, customLayers])
 
-  const allGeoJsons = useMemo(
-    () => gisLayers.map((l) => l.geojson).filter(Boolean),
+  // Sanitise GIS layer geojson at render time to guard against invalid
+  // geometries persisted in the DB before upload-time validation existed.
+  const sanitizedGisLayers = useMemo(
+    () =>
+      gisLayers
+        .filter((l) => l.geojson && l.geojson.type === 'FeatureCollection')
+        .map((l) => ({ ...l, geojson: sanitizeFeatures(l.geojson) }))
+        .filter((l) => l.geojson.features.length > 0),
     [gisLayers]
+  )
+
+  const allGeoJsons = useMemo(
+    () => sanitizedGisLayers.map((l) => l.geojson),
+    [sanitizedGisLayers]
   )
 
   // Compute metric overlay data when a metric is active
@@ -789,7 +800,7 @@ export default function TrialMap({
 
   // ---------- Render ----------
 
-  const totalLayers = gisLayers.length + customLayers.length
+  const totalLayers = sanitizedGisLayers.length + customLayers.length
 
   return (
     <div>
@@ -970,8 +981,7 @@ export default function TrialMap({
             )}
 
             {/* GIS layers */}
-            {gisLayers.map((layer, idx) => {
-              if (!layer.geojson || layer.geojson.type !== 'FeatureCollection') return null
+            {sanitizedGisLayers.map((layer, idx) => {
               const color = layer.style?.color || LAYER_COLORS[idx % LAYER_COLORS.length]
               return (
                 <LayersControl.Overlay checked key={layer.id} name={layer.name}>
@@ -1037,7 +1047,7 @@ export default function TrialMap({
               <LayersControl.Overlay checked key={`custom-${layer.id}`} name={`${layer.name} (${layer.point_count} pts)`}>
                 <FeatureGroup>
                   {layer.points.map((pt, i) => {
-                    const color = LAYER_COLORS[(gisLayers.length + idx) % LAYER_COLORS.length]
+                    const color = LAYER_COLORS[(sanitizedGisLayers.length + idx) % LAYER_COLORS.length]
                     return (
                       <CircleMarker
                         key={i}
@@ -1086,12 +1096,12 @@ export default function TrialMap({
       </div>
 
       {/* Layer list */}
-      {(gisLayers.length > 0 || customLayers.length > 0) && (
+      {(sanitizedGisLayers.length > 0 || customLayers.length > 0) && (
         <div className="mt-4">
           <p className="signpost-label mb-2">LAYERS</p>
           <div className="space-y-2">
             {/* GIS layers */}
-            {gisLayers.map((layer, idx) => {
+            {sanitizedGisLayers.map((layer, idx) => {
               const color = layer.style?.color || LAYER_COLORS[idx % LAYER_COLORS.length]
               return (
                 <div
@@ -1127,7 +1137,7 @@ export default function TrialMap({
 
             {/* Custom data layers */}
             {customLayers.map((layer, idx) => {
-              const color = LAYER_COLORS[(gisLayers.length + idx) % LAYER_COLORS.length]
+              const color = LAYER_COLORS[(sanitizedGisLayers.length + idx) % LAYER_COLORS.length]
               return (
                 <div
                   key={layer.id}
@@ -1164,7 +1174,7 @@ export default function TrialMap({
       )}
 
       {/* Empty state */}
-      {!trialCoord && samplePoints.length === 0 && gisLayers.length === 0 && customLayers.length === 0 && (
+      {!trialCoord && samplePoints.length === 0 && sanitizedGisLayers.length === 0 && customLayers.length === 0 && (
         <div className="text-center py-8 text-brand-grey-1">
           <MapPin size={40} className="mx-auto mb-3 opacity-40" />
           <p className="text-sm font-medium mb-1">No spatial data yet</p>

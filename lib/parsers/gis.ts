@@ -1,4 +1,4 @@
-import type { FeatureCollection, Feature } from 'geojson'
+import type { FeatureCollection, Feature, Geometry } from 'geojson'
 
 export type GISFileType = 'geojson' | 'kml' | 'kmz' | 'shapefile'
 
@@ -14,15 +14,33 @@ const VALID_GEOMETRY_TYPES = new Set([
 ])
 
 /**
+ * Recursively validate that a geometry object has the structure Leaflet
+ * expects.  Returns false for null geometries, missing coordinates, or
+ * GeometryCollections whose `geometries` array is null / empty / contains
+ * invalid children.
+ */
+function isValidGeometry(geom: Geometry | null | undefined): boolean {
+  if (!geom || typeof geom !== 'object') return false
+  if (!VALID_GEOMETRY_TYPES.has(geom.type)) return false
+
+  if (geom.type === 'GeometryCollection') {
+    if (!Array.isArray(geom.geometries) || geom.geometries.length === 0) return false
+    return geom.geometries.every(isValidGeometry)
+  }
+
+  // All other geometry types require a coordinates array
+  if (!Array.isArray((geom as any).coordinates)) return false
+  return true
+}
+
+/**
  * Sanitise a FeatureCollection by removing features with null or
  * unsupported geometries that would cause Leaflet to throw.
  */
-function sanitizeFeatures(fc: FeatureCollection): FeatureCollection {
+export function sanitizeFeatures(fc: FeatureCollection): FeatureCollection {
   const clean = fc.features.filter((f): f is Feature => {
     if (!f || f.type !== 'Feature') return false
-    if (!f.geometry) return false
-    if (!VALID_GEOMETRY_TYPES.has(f.geometry.type)) return false
-    return true
+    return isValidGeometry(f.geometry)
   })
   return { ...fc, features: clean }
 }
@@ -45,7 +63,7 @@ export function detectGISFileType(filename: string): GISFileType | null {
 }
 
 /** Returns a list of accepted file extensions for the upload input */
-export const GIS_ACCEPT = '.geojson,.kml,.kmz,.shp,.zip'
+export const GIS_ACCEPT = '.geojson,.kml,.kmz,.zip'
 
 async function parseGeoJSON(file: File): Promise<FeatureCollection> {
   const text = await file.text()
