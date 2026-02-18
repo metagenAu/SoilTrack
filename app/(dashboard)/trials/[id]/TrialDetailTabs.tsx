@@ -19,9 +19,11 @@ interface TrialDetailTabsProps {
   plots: any[]
   log: any[]
   dataCoverage: Record<string, boolean>
+  soilChemistry?: any[]
   metadata: any[]
   photos: any[]
   gisLayers: any[]
+  customLayers?: any[]
   supabaseUrl: string
 }
 
@@ -34,9 +36,11 @@ export default function TrialDetailTabs({
   plots,
   log,
   dataCoverage,
+  soilChemistry = [],
   metadata,
   photos,
   gisLayers,
+  customLayers = [],
   supabaseUrl,
 }: TrialDetailTabsProps) {
   const [activeTab, setActiveTab] = useState('Summary')
@@ -164,6 +168,8 @@ export default function TrialDetailTabs({
             trial={trial}
             samples={samples}
             gisLayers={gisLayers}
+            customLayers={customLayers}
+            soilChemistry={soilChemistry}
             supabaseUrl={supabaseUrl}
           />
         </div>
