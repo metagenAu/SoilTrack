@@ -532,7 +532,16 @@ export default function TrialMap({
     setUploadError(null)
     const fileType = detectGISFileType(file.name)
     if (!fileType) {
-      setUploadError('Unsupported file type. Please upload .geojson, .kml, .kmz, .shp, or .zip files.')
+      setUploadError('Unsupported file type. Please upload .geojson, .kml, .kmz, or .zip (zipped shapefile) files.')
+      return
+    }
+
+    // Warn early for raw .shp — shpjs needs the full bundle in a .zip
+    if (file.name.toLowerCase().endsWith('.shp')) {
+      setUploadError(
+        'A raw .shp file cannot be processed on its own. ' +
+        'Please zip the .shp together with its companion files (.dbf, .shx, .prj) and upload the .zip instead.'
+      )
       return
     }
 
@@ -1159,7 +1168,7 @@ export default function TrialMap({
           <MapPin size={40} className="mx-auto mb-3 opacity-40" />
           <p className="text-sm font-medium mb-1">No spatial data yet</p>
           <p className="text-xs">
-            Upload a GIS file (Shapefile, KML, GeoJSON) or a CSV data layer to see it on the map.
+            Upload a GIS file (zipped Shapefile, KML, GeoJSON) or a CSV data layer to see it on the map.
             <br />
             GPS coordinates from the trial summary and soil samples will also appear here.
           </p>
