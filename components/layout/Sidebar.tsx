@@ -14,6 +14,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Maximize2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUserRole } from '@/components/providers/UserRoleProvider'
@@ -23,6 +24,7 @@ const navItems = [
   { label: 'Data Hub', href: '/data-hub', icon: Database, requiresUpload: true },
   { label: 'Trials', href: '/trials', icon: FlaskConical, requiresUpload: false },
   { label: 'Clients', href: '/clients', icon: Users, requiresUpload: false },
+  { label: 'Fields', href: '/fields', icon: Maximize2, requiresUpload: false },
   { label: 'Analytics', href: '/analytics', icon: PieChart, requiresUpload: false },
   { label: 'Analysis', href: '/analysis', icon: BarChart3, requiresUpload: false },
   { label: 'Reports', href: '/reports', icon: FileText, requiresUpload: false },
