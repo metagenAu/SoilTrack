@@ -1,6 +1,31 @@
-import type { FeatureCollection } from 'geojson'
+import type { FeatureCollection, Feature } from 'geojson'
 
 export type GISFileType = 'geojson' | 'kml' | 'kmz' | 'shapefile'
+
+/** Geometry types that Leaflet can render */
+const VALID_GEOMETRY_TYPES = new Set([
+  'Point',
+  'MultiPoint',
+  'LineString',
+  'MultiLineString',
+  'Polygon',
+  'MultiPolygon',
+  'GeometryCollection',
+])
+
+/**
+ * Sanitise a FeatureCollection by removing features with null or
+ * unsupported geometries that would cause Leaflet to throw.
+ */
+function sanitizeFeatures(fc: FeatureCollection): FeatureCollection {
+  const clean = fc.features.filter((f): f is Feature => {
+    if (!f || f.type !== 'Feature') return false
+    if (!f.geometry) return false
+    if (!VALID_GEOMETRY_TYPES.has(f.geometry.type)) return false
+    return true
+  })
+  return { ...fc, features: clean }
+}
 
 const GIS_EXTENSIONS: Record<string, GISFileType> = {
   '.geojson': 'geojson',
@@ -26,12 +51,24 @@ async function parseGeoJSON(file: File): Promise<FeatureCollection> {
   const text = await file.text()
   const parsed = JSON.parse(text)
 
-  // Normalise: wrap bare Feature or Geometry in a FeatureCollection
-  if (parsed.type === 'FeatureCollection') return parsed
-  if (parsed.type === 'Feature') {
-    return { type: 'FeatureCollection', features: [parsed] }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('File does not contain a valid GeoJSON object.')
   }
-  // Bare geometry
+
+  // Normalise: wrap bare Feature or Geometry in a FeatureCollection
+  if (parsed.type === 'FeatureCollection') {
+    return sanitizeFeatures(parsed)
+  }
+  if (parsed.type === 'Feature') {
+    return sanitizeFeatures({ type: 'FeatureCollection', features: [parsed] })
+  }
+  // Bare geometry — validate before wrapping
+  if (!VALID_GEOMETRY_TYPES.has(parsed.type)) {
+    throw new Error(
+      `Unsupported or invalid GeoJSON geometry type "${parsed.type || 'unknown'}". ` +
+      'Please ensure the file is valid GeoJSON.'
+    )
+  }
   return {
     type: 'FeatureCollection',
     features: [{ type: 'Feature', geometry: parsed, properties: {} }],
@@ -42,7 +79,14 @@ async function parseKML(file: File): Promise<FeatureCollection> {
   const { kml } = await import('@tmcw/togeojson')
   const text = await file.text()
   const dom = new DOMParser().parseFromString(text, 'application/xml')
-  return kml(dom) as FeatureCollection
+
+  // DOMParser never throws — check for XML parse errors
+  const parseError = dom.querySelector('parsererror')
+  if (parseError) {
+    throw new Error('The KML file contains invalid XML and could not be parsed.')
+  }
+
+  return sanitizeFeatures(kml(dom) as FeatureCollection)
 }
 
 async function parseKMZ(file: File): Promise<FeatureCollection> {
@@ -59,7 +103,13 @@ async function parseKMZ(file: File): Promise<FeatureCollection> {
 
   const text = await zip.files[kmlEntry].async('text')
   const dom = new DOMParser().parseFromString(text, 'application/xml')
-  return kml(dom) as FeatureCollection
+
+  const parseError = dom.querySelector('parsererror')
+  if (parseError) {
+    throw new Error('The KML inside the KMZ archive contains invalid XML and could not be parsed.')
+  }
+
+  return sanitizeFeatures(kml(dom) as FeatureCollection)
 }
 
 async function parseShapefile(file: File): Promise<FeatureCollection> {
@@ -78,12 +128,12 @@ async function parseShapefile(file: File): Promise<FeatureCollection> {
   // shpjs can return a single FeatureCollection or an array of them (for .zip with multiple layers)
   if (Array.isArray(result)) {
     // Merge all features into a single FeatureCollection
-    return {
+    return sanitizeFeatures({
       type: 'FeatureCollection',
       features: result.flatMap((fc) => fc.features),
-    }
+    })
   }
-  return result as FeatureCollection
+  return sanitizeFeatures(result as FeatureCollection)
 }
 
 /**
