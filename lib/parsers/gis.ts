@@ -136,6 +136,68 @@ async function parseKMZ(file: File): Promise<FeatureCollection> {
   return sanitizeFeatures(kml(dom) as FeatureCollection)
 }
 
+/**
+ * Extract a user-friendly layer name from the path shpjs attaches to each
+ * parsed FeatureCollection.  The value is the full path within the ZIP
+ * (e.g. "subfolder/boundary") so we strip directory components.
+ */
+function shpjsLayerName(raw: string | undefined, fallback: string): string {
+  if (!raw) return fallback
+  return raw.split('/').pop() || fallback
+}
+
+/** Companion extensions that make up a complete shapefile. */
+const SHP_COMPANIONS = ['.shp', '.dbf', '.shx', '.prj', '.cpg']
+
+/**
+ * Parse each shapefile in a ZIP individually using JSZip for extraction
+ * (more reliable across compression methods) and shpjs for geometry parsing.
+ * Each .shp file becomes its own mini-ZIP so shpjs can handle it independently.
+ */
+async function parseShapefileGroupsViaJSZip(
+  shp: typeof import('shpjs').default,
+  zip: InstanceType<typeof import('jszip')>,
+  shpBases: string[],
+  fallbackName: string
+): Promise<ParsedGISLayer[]> {
+  const JSZip = (await import('jszip')).default
+
+  // Case-insensitive lookup for companion files
+  const fileLookup = new Map<string, string>()
+  for (const name of Object.keys(zip.files)) {
+    fileLookup.set(name.toLowerCase(), name)
+  }
+
+  const layers: ParsedGISLayer[] = []
+
+  for (const base of shpBases) {
+    const displayName = base.split('/').pop() || fallbackName
+
+    // Build a mini-ZIP with just this shapefile + its companion files
+    const mini = new JSZip()
+    for (const ext of SHP_COMPANIONS) {
+      const key = fileLookup.get((base + ext).toLowerCase())
+      if (key && !zip.files[key].dir) {
+        mini.file(displayName + ext, await zip.files[key].async('arraybuffer'))
+      }
+    }
+
+    try {
+      const miniBuffer = await mini.generateAsync({ type: 'arraybuffer' })
+      const result = await shp(miniBuffer)
+      const fc = (Array.isArray(result) ? result[0] : result) as FeatureCollection
+      const sanitized = sanitizeFeatures(fc)
+      if (sanitized.features.length > 0) {
+        layers.push({ name: displayName, geojson: sanitized })
+      }
+    } catch (e) {
+      console.warn(`Failed to parse shapefile layer "${displayName}":`, e)
+    }
+  }
+
+  return layers
+}
+
 async function parseShapefileLayers(file: File): Promise<ParsedGISLayer[]> {
   let shp: typeof import('shpjs').default
   try {
@@ -147,23 +209,63 @@ async function parseShapefileLayers(file: File): Promise<ParsedGISLayer[]> {
     )
   }
   const buffer = await file.arrayBuffer()
-  const result = await shp(buffer)
-
   const baseName = file.name.replace(/\.[^.]+$/, '')
 
-  // shpjs can return a single FeatureCollection or an array of them (for .zip with multiple layers)
+  // Use JSZip to discover .shp files inside the ZIP.  JSZip handles more
+  // compression methods than shpjs's built-in extractor (but-unzip), so it
+  // gives us a reliable layer count and proper shapefile names for display.
+  let shpBases: string[] = []
+  let zip: InstanceType<typeof import('jszip')> | null = null
+  try {
+    const JSZip = (await import('jszip')).default
+    zip = await JSZip.loadAsync(buffer)
+    shpBases = Object.keys(zip.files)
+      .filter((n) => !n.startsWith('__MACOSX') && n.toLowerCase().endsWith('.shp'))
+      .map((n) => n.slice(0, -4)) // strip .shp extension
+  } catch {
+    // JSZip scan failed — fall through to shpjs-only path below
+  }
+
+  // When multiple .shp files exist, parse each individually via mini-ZIPs
+  // to guarantee every layer is discovered and properly named.
+  if (zip && shpBases.length > 1) {
+    const layers = await parseShapefileGroupsViaJSZip(shp, zip, shpBases, baseName)
+    if (layers.length > 0) return layers
+    // All layers empty or failed — fall through to shpjs as a last resort
+  }
+
+  // Parse with shpjs (works well for single-layer and as a fallback)
+  let result: Awaited<ReturnType<typeof shp>>
+  try {
+    result = await shp(buffer)
+  } catch {
+    // shpjs's but-unzip may fail on certain ZIP formats — try JSZip extraction
+    if (zip && shpBases.length > 0) {
+      const layers = await parseShapefileGroupsViaJSZip(shp, zip, shpBases, baseName)
+      if (layers.length > 0) return layers
+    }
+    throw new Error(
+      'Failed to parse the shapefile ZIP. The file may be corrupted or use an unsupported compression method. ' +
+      'Try re-exporting from your GIS software or converting to .geojson.'
+    )
+  }
+
   if (Array.isArray(result)) {
     return result
       .map((fc, idx) => {
         const sanitized = sanitizeFeatures(fc)
-        // shpjs attaches fileName to each FeatureCollection in a multi-layer ZIP
-        const layerName = fc.fileName || `${baseName} - Layer ${idx + 1}`
+        // Strip directory paths from shpjs fileName for cleaner display
+        const layerName = shpjsLayerName(fc.fileName, `${baseName} - Layer ${idx + 1}`)
         return { name: layerName, geojson: sanitized }
       })
       .filter((layer) => layer.geojson.features.length > 0)
   }
 
-  return [{ name: baseName, geojson: sanitizeFeatures(result as FeatureCollection) }]
+  // Single shapefile — name after the .shp file inside the ZIP, not the ZIP itself
+  const layerName = shpBases.length === 1
+    ? (shpBases[0].split('/').pop() || baseName)
+    : shpjsLayerName((result as any).fileName, baseName)
+  return [{ name: layerName, geojson: sanitizeFeatures(result as FeatureCollection) }]
 }
 
 async function parseShapefile(file: File): Promise<FeatureCollection> {
