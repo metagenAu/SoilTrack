@@ -311,31 +311,31 @@ export default function FieldMap({
         throw new Error('No polygon features found in file. Boundary requires polygon geometry.')
       }
 
+      // Strip feature properties — boundaries only need geometry, and
+      // shapefile attributes can bloat the payload beyond API body limits.
       const fc: FeatureCollection = {
         type: 'FeatureCollection',
-        features: polygonFeatures,
+        features: polygonFeatures.map((f) => ({
+          type: 'Feature' as const,
+          geometry: f.geometry,
+          properties: {},
+        })),
       }
 
-      // Render on map
-      boundaryLayerRef.current.clearLayers()
+      // Render on a temp layer to calculate area before saving
+      const tempGroup = new L.FeatureGroup()
       const geoLayer = L.geoJSON(fc, {
         style: { color: '#22c55e', weight: 3, fillOpacity: 0.1, fillColor: '#22c55e' },
       })
-      geoLayer.eachLayer((l) => boundaryLayerRef.current.addLayer(l))
-      setHasBoundary(true)
+      geoLayer.eachLayer((l) => tempGroup.addLayer(l))
 
-      if (mapRef.current) {
-        mapRef.current.fitBounds(boundaryLayerRef.current.getBounds().pad(0.1))
-      }
-
-      // Calculate area
       let area_ha: number | null = null
-      boundaryLayerRef.current.eachLayer((layer) => {
+      tempGroup.eachLayer((layer) => {
         const a = calcArea(layer)
         if (a) area_ha = (area_ha || 0) + a
       })
 
-      // Save to DB
+      // Save to DB first — only render on map after persistence succeeds
       const res = await fetch(`/api/fields/${fieldId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -346,7 +346,19 @@ export default function FieldMap({
         }),
       })
 
-      if (!res.ok) throw new Error('Failed to save imported boundary')
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error || 'Failed to save boundary — the file may be too large')
+      }
+
+      // Save succeeded — now render on map
+      boundaryLayerRef.current.clearLayers()
+      tempGroup.eachLayer((l) => boundaryLayerRef.current.addLayer(l))
+      setHasBoundary(true)
+
+      if (mapRef.current) {
+        mapRef.current.fitBounds(boundaryLayerRef.current.getBounds().pad(0.1))
+      }
 
       setStatusMsg(`Imported ${polygonFeatures.length} polygon(s) from ${file.name}`)
       setTimeout(() => setStatusMsg(null), 5000)
@@ -433,7 +445,7 @@ export default function FieldMap({
         )}
 
         {statusMsg && (
-          <span className={`text-xs ml-2 ${statusMsg.includes('Error') || statusMsg.includes('failed') ? 'text-red-600' : 'text-green-600'}`}>
+          <span className={`text-xs ml-2 ${statusMsg.toLowerCase().includes('error') || statusMsg.toLowerCase().includes('fail') ? 'text-red-600' : 'text-green-600'}`}>
             {statusMsg}
           </span>
         )}
