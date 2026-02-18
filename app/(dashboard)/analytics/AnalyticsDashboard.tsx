@@ -1,10 +1,17 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { Map, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import MapTab from './MapTab'
-import SummaryTab from './SummaryTab'
+
+// Lazy-load tab content so only the active tab's JS downloads
+const MapTab = dynamic(() => import('./MapTab'), {
+  loading: () => <div className="h-96 animate-pulse bg-brand-grey-3 rounded-lg" />,
+})
+const SummaryTab = dynamic(() => import('./SummaryTab'), {
+  loading: () => <div className="h-96 animate-pulse bg-brand-grey-3 rounded-lg" />,
+})
 
 export interface Trial {
   id: string

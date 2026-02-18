@@ -28,7 +28,7 @@ interface GroupStats {
   q3: number
   max: number
   n: number
-  values: number[]
+  values?: number[]
 }
 
 interface MetricStats {

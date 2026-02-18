@@ -201,5 +201,13 @@ export async function GET(request: NextRequest) {
 
   metrics.sort((a, b) => a.metric.localeCompare(b.metric))
 
-  return NextResponse.json({ metrics })
+  // Strip the raw values arrays from the response — they can be very large
+  // and the client only needs the pre-computed stats (mean, median, etc.).
+  // The BoxPlotChart still receives min/q1/median/q3/max for rendering.
+  const lightMetrics = metrics.map(m => ({
+    ...m,
+    groups: m.groups.map(({ values: _values, ...rest }) => rest),
+  }))
+
+  return NextResponse.json({ metrics: lightMetrics })
 }

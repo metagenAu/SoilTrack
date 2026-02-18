@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export type UserRole = 'admin' | 'upload' | 'readonly'
@@ -6,8 +7,11 @@ export type UserRole = 'admin' | 'upload' | 'readonly'
  * Get the current user's role from the profiles table.
  * Returns 'readonly' if no profile row exists.
  * Call from Server Components or API routes only.
+ *
+ * Wrapped with React cache() so that multiple calls within the same
+ * request (e.g. layout + page) only hit the database once.
  */
-export async function getUserRole(): Promise<{ role: UserRole; userId: string | null }> {
+export const getUserRole = cache(async (): Promise<{ role: UserRole; userId: string | null }> => {
   const supabase = createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -23,7 +27,7 @@ export async function getUserRole(): Promise<{ role: UserRole; userId: string | 
 
   const role = (profile?.role as UserRole) || 'readonly'
   return { role, userId: user.id }
-}
+})
 
 /**
  * Check if a role can upload data (admin or upload).

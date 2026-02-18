@@ -1,5 +1,9 @@
-import { useMemo } from 'react'
+'use client'
+
+import { useMemo, useState } from 'react'
 import ProductTag from '@/components/ui/ProductTag'
+
+const PAGE_SIZE = 50
 
 interface PlotDataRow {
   id: string
@@ -105,7 +109,40 @@ function formatCellValue(val: any): string {
   return s
 }
 
+/** Pagination controls shared by both table modes */
+function PaginationBar({ page, totalPages, total, onPrev, onNext }: {
+  page: number; totalPages: number; total: number
+  onPrev: () => void; onNext: () => void
+}) {
+  if (totalPages <= 1) return null
+  return (
+    <div className="flex items-center justify-between mt-3 text-xs text-brand-grey-1">
+      <span>
+        Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
+      </span>
+      <div className="flex gap-1">
+        <button
+          onClick={onPrev}
+          disabled={page === 0}
+          className="px-2 py-1 rounded border border-brand-grey-2 hover:bg-brand-grey-3 disabled:opacity-40"
+        >
+          Prev
+        </button>
+        <button
+          onClick={onNext}
+          disabled={page >= totalPages - 1}
+          className="px-2 py-1 rounded border border-brand-grey-2 hover:bg-brand-grey-3 disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function PlotDataTable({ plots }: PlotDataTableProps) {
+  const [page, setPage] = useState(0)
+
   if (plots.length === 0) {
     return <p className="text-sm text-brand-grey-1">No plot data recorded.</p>
   }
@@ -118,6 +155,22 @@ export default function PlotDataTable({ plots }: PlotDataTableProps) {
     [plots, hasRawData]
   )
 
+  // Build a pre-normalized key lookup per row: column name → value
+  // This eliminates the O(cols) per-cell case-insensitive scan.
+  const normalizedRowCache = useMemo(() => {
+    if (!hasRawData) return null
+    const cache = new Map<string, Map<string, any>>()
+    for (const p of plots) {
+      const raw = p.raw_data || {}
+      const normalized = new Map<string, any>()
+      for (const [key, val] of Object.entries(raw)) {
+        normalized.set(key.toLowerCase().trim(), val)
+      }
+      cache.set(p.id, normalized)
+    }
+    return cache
+  }, [plots, hasRawData])
+
   // For treatment enrichment: find which column is the treatment number column
   const trtColumnKey = useMemo(() => {
     if (!hasRawData) return null
@@ -128,94 +181,102 @@ export default function PlotDataTable({ plots }: PlotDataTableProps) {
     return null
   }, [dynamicColumns, hasRawData])
 
+  const totalPages = Math.ceil(plots.length / PAGE_SIZE)
+  const paged = plots.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const pagination = (
+    <PaginationBar
+      page={page}
+      totalPages={totalPages}
+      total={plots.length}
+      onPrev={() => setPage(p => Math.max(0, p - 1))}
+      onNext={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+    />
+  )
+
   if (!hasRawData) {
     // Fallback: render the old static columns from typed DB fields
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-brand-grey-2">
-              {FALLBACK_COLUMNS.map(col => (
-                <th key={col.key} className="table-header text-left py-3 px-3">{col.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {plots.map((p, i) => (
-              <tr key={p.id} className={i % 2 === 1 ? 'bg-brand-grey-3' : ''}>
-                <td className="py-2.5 px-3 font-mono font-medium">{p.plot || '—'}</td>
-                <td className="py-2.5 px-3">
-                  {p.treatment_product ? (
-                    <ProductTag product={p.treatment_product} />
-                  ) : (
-                    p.treatment_application || (p.trt_number != null ? `Trt ${p.trt_number}` : '—')
-                  )}
-                </td>
-                <td className="py-2.5 px-3 font-mono">{p.rep ?? '—'}</td>
-                <td className="py-2.5 px-3 font-mono font-bold">{p.yield_t_ha?.toFixed(2) ?? '—'}</td>
-                <td className="py-2.5 px-3 font-mono">{p.plant_count ?? '—'}</td>
-                <td className="py-2.5 px-3 font-mono">{p.vigour ?? '—'}</td>
-                <td className="py-2.5 px-3 font-mono">{p.disease_score ?? '—'}</td>
+      <div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-brand-grey-2">
+                {FALLBACK_COLUMNS.map(col => (
+                  <th key={col.key} className="table-header text-left py-3 px-3">{col.label}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {paged.map((p, i) => (
+                <tr key={p.id} className={i % 2 === 1 ? 'bg-brand-grey-3' : ''}>
+                  <td className="py-2.5 px-3 font-mono font-medium">{p.plot || '—'}</td>
+                  <td className="py-2.5 px-3">
+                    {p.treatment_product ? (
+                      <ProductTag product={p.treatment_product} />
+                    ) : (
+                      p.treatment_application || (p.trt_number != null ? `Trt ${p.trt_number}` : '—')
+                    )}
+                  </td>
+                  <td className="py-2.5 px-3 font-mono">{p.rep ?? '—'}</td>
+                  <td className="py-2.5 px-3 font-mono font-bold">{p.yield_t_ha?.toFixed(2) ?? '—'}</td>
+                  <td className="py-2.5 px-3 font-mono">{p.plant_count ?? '—'}</td>
+                  <td className="py-2.5 px-3 font-mono">{p.vigour ?? '—'}</td>
+                  <td className="py-2.5 px-3 font-mono">{p.disease_score ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {pagination}
       </div>
     )
   }
 
   // Dynamic mode: render all columns discovered from raw_data
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-brand-grey-2">
-            {dynamicColumns.map(col => (
-              <th key={col} className="table-header text-left py-3 px-3 whitespace-nowrap">
-                {col}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {plots.map((p, i) => {
-            const raw = p.raw_data || {}
-            return (
-              <tr key={p.id} className={i % 2 === 1 ? 'bg-brand-grey-3' : ''}>
-                {dynamicColumns.map(col => {
-                  // Find the value — try exact key first, then case-insensitive
-                  let val = raw[col]
-                  if (val === undefined) {
-                    // Try matching by lowercase
-                    const colLower = col.toLowerCase().trim()
-                    for (const key of Object.keys(raw)) {
-                      if (key.toLowerCase().trim() === colLower) {
-                        val = raw[key]
-                        break
-                      }
-                    }
-                  }
+    <div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-brand-grey-2">
+              {dynamicColumns.map(col => (
+                <th key={col} className="table-header text-left py-3 px-3 whitespace-nowrap">
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {paged.map((p, i) => {
+              const normalized = normalizedRowCache?.get(p.id)
+              return (
+                <tr key={p.id} className={i % 2 === 1 ? 'bg-brand-grey-3' : ''}>
+                  {dynamicColumns.map(col => {
+                    // O(1) lookup via pre-normalized cache instead of per-cell scan
+                    const val = normalized?.get(col.toLowerCase().trim())
 
-                  // Special treatment enrichment for the treatment column
-                  if (col === trtColumnKey && p.treatment_product) {
+                    // Special treatment enrichment for the treatment column
+                    if (col === trtColumnKey && p.treatment_product) {
+                      return (
+                        <td key={col} className="py-2.5 px-3">
+                          <ProductTag product={p.treatment_product} />
+                        </td>
+                      )
+                    }
+
                     return (
-                      <td key={col} className="py-2.5 px-3">
-                        <ProductTag product={p.treatment_product} />
+                      <td key={col} className="py-2.5 px-3 font-mono whitespace-nowrap">
+                        {formatCellValue(val)}
                       </td>
                     )
-                  }
-
-                  return (
-                    <td key={col} className="py-2.5 px-3 font-mono whitespace-nowrap">
-                      {formatCellValue(val)}
-                    </td>
-                  )
-                })}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      {pagination}
     </div>
   )
 }

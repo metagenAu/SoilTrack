@@ -32,7 +32,7 @@ interface GroupStats {
   q3: number
   max: number
   n: number
-  values: number[]
+  values?: number[]
 }
 
 interface MetricStats {
@@ -115,9 +115,14 @@ export default function BoxPlotChart({ metric }: { metric: MetricStats }) {
     x: i + 1,
   }))
 
-  const allValues = metric.groups.flatMap(g => g.values)
-  const yMin = allValues.length > 0 ? Math.min(...allValues) : 0
-  const yMax = allValues.length > 0 ? Math.max(...allValues) : 1
+  // Use pre-computed group stats instead of raw values (which are no longer sent by the API)
+  let yMin = Infinity
+  let yMax = -Infinity
+  for (const g of metric.groups) {
+    if (g.min < yMin) yMin = g.min
+    if (g.max > yMax) yMax = g.max
+  }
+  if (!isFinite(yMin)) { yMin = 0; yMax = 1 }
   const padding = (yMax - yMin) * 0.1 || 1
 
   return (

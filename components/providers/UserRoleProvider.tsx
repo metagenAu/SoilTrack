@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useMemo } from 'react'
 
 export type UserRole = 'admin' | 'upload' | 'readonly'
 
@@ -25,12 +25,12 @@ export function UserRoleProvider({
   role: UserRole
   children: React.ReactNode
 }) {
-  const value: UserRoleContextValue = {
+  const value = useMemo<UserRoleContextValue>(() => ({
     role,
     canUpload: role === 'admin' || role === 'upload',
     canModify: role === 'admin',
     canManageUsers: role === 'admin',
-  }
+  }), [role])
 
   return (
     <UserRoleContext.Provider value={value}>

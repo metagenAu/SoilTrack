@@ -130,12 +130,14 @@ export default function ReportsClient({ trials }: { trials: { id: string; name: 
           )}
 
           {/* Yield summary */}
-          {report.yieldSummary.length > 0 && (
+          {report.yieldSummary.length > 0 && (() => {
+            // Compute maxYield once (was O(n²) when inside .map())
+            const maxYield = report.yieldSummary.reduce((m: number, y: any) => Math.max(m, y.avgYield), 0)
+            return (
             <div className="card">
               <p className="signpost-label mb-3">YIELD SUMMARY BY TREATMENT</p>
               <div className="space-y-3">
                 {report.yieldSummary.map((ys: any) => {
-                  const maxYield = Math.max(...report.yieldSummary.map((y: any) => y.avgYield))
                   const widthPct = maxYield > 0 ? (ys.avgYield / maxYield) * 100 : 0
                   return (
                     <div key={ys.product}>
@@ -157,7 +159,8 @@ export default function ReportsClient({ trials }: { trials: { id: string; name: 
                 })}
               </div>
             </div>
-          )}
+            )
+          })()}
         </div>
       )}
     </div>

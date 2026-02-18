@@ -1,11 +1,18 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { Loader2, BarChart3, BoxSelect } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
-import BoxPlotChart from '@/components/analysis/BoxPlotChart'
-import BarChartWithSE from '@/components/analysis/BarChartWithSE'
+
+// Lazy-load chart components (recharts is ~200KB) — only downloaded after "Run Analysis"
+const BoxPlotChart = dynamic(() => import('@/components/analysis/BoxPlotChart'), {
+  loading: () => <div className="h-80 animate-pulse bg-brand-grey-3 rounded-lg" />,
+})
+const BarChartWithSE = dynamic(() => import('@/components/analysis/BarChartWithSE'), {
+  loading: () => <div className="h-80 animate-pulse bg-brand-grey-3 rounded-lg" />,
+})
 
 const DATA_SOURCES = [
   { value: 'sampleMetadata', label: 'Assay Results' },
@@ -31,7 +38,7 @@ interface GroupStats {
   q3: number
   max: number
   n: number
-  values: number[]
+  values?: number[]
 }
 
 interface MetricStats {
