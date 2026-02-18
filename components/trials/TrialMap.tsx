@@ -7,7 +7,7 @@ import type { FeatureCollection } from 'geojson'
 import { Upload, Trash2, Loader2, MapPin, Activity, FileSpreadsheet, Grid3X3, Flame, CircleDot } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
-import { detectGISFileType, parseGISFile, sanitizeFeatures, GIS_ACCEPT } from '@/lib/parsers/gis'
+import { detectGISFileType, parseGISFileMultiLayer, sanitizeFeatures, GIS_ACCEPT } from '@/lib/parsers/gis'
 
 const MAX_FILE_SIZE_MB = 50
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024
@@ -659,20 +659,24 @@ export default function TrialMap({
 
     setUploading(true)
     const supabase = createClient()
-    const layerId = crypto.randomUUID()
-    const ext = file.name.split('.').pop()?.toLowerCase() || fileType
-    const storagePath = `${trial.id}/${layerId}.${ext}`
 
     try {
-      const geojson = await parseGISFile(file, fileType)
+      // Parse into one or more layers (multi-layer ZIP support)
+      const parsedLayers = await parseGISFileMultiLayer(file, fileType)
+      const nonEmpty = parsedLayers.filter((l) => l.geojson.features.length > 0)
 
-      if (!geojson.features || geojson.features.length === 0) {
+      if (nonEmpty.length === 0) {
         throw new Error('No features found in the uploaded file.')
       }
 
+      // Upload the raw file once to storage
+      const rawId = crypto.randomUUID()
+      const ext = file.name.split('.').pop()?.toLowerCase() || fileType
+      const rawStoragePath = `${trial.id}/${rawId}.${ext}`
+
       const { error: storageError } = await supabase.storage
         .from('trial-gis')
-        .upload(storagePath, file, {
+        .upload(rawStoragePath, file, {
           contentType: file.type || 'application/octet-stream',
           upsert: true,
         })
@@ -681,42 +685,48 @@ export default function TrialMap({
         throw new Error(`File storage failed: ${storageError.message}`)
       }
 
-      // Upload parsed GeoJSON to storage so the API route can read it without
-      // hitting Next.js / platform request body size limits on large shapefiles.
-      const geojsonPath = `${trial.id}/${layerId}.geojson`
-      const geojsonBlob = new Blob([JSON.stringify(geojson)], { type: 'application/json' })
-      const { error: geojsonStorageError } = await supabase.storage
-        .from('trial-gis')
-        .upload(geojsonPath, geojsonBlob, {
-          contentType: 'application/json',
-          upsert: true,
-        })
+      // Upload each layer as a separate record
+      const newLayers: GISLayer[] = []
+      const storagePaths: string[] = [rawStoragePath]
 
-      if (geojsonStorageError) {
-        // Clean up the raw file since we can't proceed
-        await supabase.storage.from('trial-gis').remove([storagePath])
-        throw new Error(`GeoJSON storage failed: ${geojsonStorageError.message}`)
+      for (const parsed of nonEmpty) {
+        const layerId = crypto.randomUUID()
+
+        // Upload parsed GeoJSON to storage so the API route can read it
+        const geojsonPath = `${trial.id}/${layerId}.geojson`
+        const geojsonBlob = new Blob([JSON.stringify(parsed.geojson)], { type: 'application/json' })
+        const { error: geojsonStorageError } = await supabase.storage
+          .from('trial-gis')
+          .upload(geojsonPath, geojsonBlob, {
+            contentType: 'application/json',
+            upsert: true,
+          })
+
+        if (geojsonStorageError) {
+          throw new Error(`GeoJSON storage failed: ${geojsonStorageError.message}`)
+        }
+
+        storagePaths.push(geojsonPath)
+
+        const formData = new FormData()
+        formData.append('trial_id', trial.id)
+        formData.append('name', parsed.name)
+        formData.append('file_type', fileType)
+        formData.append('geojson_path', geojsonPath)
+        formData.append('feature_count', String(parsed.geojson.features.length))
+        formData.append('storage_path', rawStoragePath)
+
+        const res = await fetch('/api/upload/gis', { method: 'POST', body: formData })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error || `Upload failed for layer "${parsed.name}" (${res.status})`)
+        }
+
+        const { layer } = await res.json()
+        newLayers.push(layer)
       }
 
-      // Send only small metadata to the API route (no large GeoJSON in the body)
-      const formData = new FormData()
-      formData.append('trial_id', trial.id)
-      formData.append('name', file.name.replace(/\.[^.]+$/, ''))
-      formData.append('file_type', fileType)
-      formData.append('geojson_path', geojsonPath)
-      formData.append('feature_count', String(geojson.features.length))
-      formData.append('storage_path', storagePath)
-
-      const res = await fetch('/api/upload/gis', { method: 'POST', body: formData })
-      if (!res.ok) {
-        // Clean up uploaded files since the API call failed
-        await supabase.storage.from('trial-gis').remove([storagePath, geojsonPath])
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error || `Upload failed (${res.status})`)
-      }
-
-      const { layer } = await res.json()
-      setGisLayers((prev) => [...prev, layer])
+      setGisLayers((prev) => [...prev, ...newLayers])
     } catch (err: any) {
       console.error('GIS upload failed:', err)
       setUploadError(err.message || 'Upload failed')
