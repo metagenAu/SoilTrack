@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useMemo, useEffect } from 'react'
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, GeoJSON, CircleMarker, LayersControl, FeatureGroup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import type { FeatureCollection } from 'geojson'
@@ -263,18 +263,26 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
         this._canvas = L.DomUtil.create('canvas', 'leaflet-layer') as HTMLCanvasElement
         this._canvas.style.position = 'absolute'
         this._canvas.style.pointerEvents = 'none'
+        this._debounceTimer = null as ReturnType<typeof setTimeout> | null
         const pane = map.getPane('overlayPane')
         if (pane) pane.appendChild(this._canvas)
 
-        map.on('moveend zoomend resize', this._redraw, this)
+        map.on('moveend zoomend resize', this._scheduleRedraw, this)
         this._redraw()
       },
 
       onRemove(map: L.Map) {
+        if (this._debounceTimer) clearTimeout(this._debounceTimer)
         if (this._canvas.parentNode) {
           this._canvas.parentNode.removeChild(this._canvas)
         }
-        map.off('moveend zoomend resize', this._redraw, this)
+        map.off('moveend zoomend resize', this._scheduleRedraw, this)
+      },
+
+      /** Debounce redraws so pan/zoom stays smooth */
+      _scheduleRedraw() {
+        if (this._debounceTimer) clearTimeout(this._debounceTimer)
+        this._debounceTimer = setTimeout(() => this._redraw(), 150)
       },
 
       _redraw() {
@@ -415,6 +423,30 @@ function HeatmapLayer({ points }: { points: [number, number][] }) {
 
 // ---------- Sub-components ----------
 
+/**
+ * Recursively extract all [lng, lat] coordinate pairs from a GeoJSON geometry
+ * without creating any Leaflet objects (much faster than L.geoJSON().getBounds()).
+ */
+function extractGeometryBounds(geom: any, bounds: L.LatLngBounds): void {
+  if (!geom) return
+  const { type, coordinates, geometries } = geom
+  if (type === 'GeometryCollection' && Array.isArray(geometries)) {
+    for (const g of geometries) extractGeometryBounds(g, bounds)
+    return
+  }
+  if (!Array.isArray(coordinates)) return
+  // Flatten nested coordinate arrays to reach [lng, lat] pairs
+  const flat = (arr: any): void => {
+    if (typeof arr[0] === 'number') {
+      // [lng, lat, ?alt]
+      bounds.extend([arr[1], arr[0]])
+    } else if (Array.isArray(arr)) {
+      for (const item of arr) flat(item)
+    }
+  }
+  flat(coordinates)
+}
+
 function FitBounds({ points, geoJsonLayers }: { points: [number, number][]; geoJsonLayers: FeatureCollection[] }) {
   const map = useMap()
 
@@ -425,15 +457,15 @@ function FitBounds({ points, geoJsonLayers }: { points: [number, number][]; geoJ
       bounds.extend([lat, lng])
     }
 
+    // Extract bounds directly from GeoJSON coordinates — no temporary Leaflet layers
     for (const fc of geoJsonLayers) {
-      try {
-        const layer = L.geoJSON(fc)
-        const layerBounds = layer.getBounds()
-        if (layerBounds.isValid()) {
-          bounds.extend(layerBounds)
+      if (!fc.features) continue
+      for (const f of fc.features) {
+        try {
+          extractGeometryBounds(f.geometry, bounds)
+        } catch {
+          // skip malformed geometry
         }
-      } catch {
-        // skip invalid geojson
       }
     }
 
@@ -554,6 +586,7 @@ export default function TrialMap({
 
   // Sanitise GIS layer geojson at render time to guard against invalid
   // geometries persisted in the DB before upload-time validation existed.
+  // Also count total vertices so we can enable simplification for heavy layers.
   const sanitizedGisLayers = useMemo(
     () =>
       gisLayers
@@ -562,6 +595,26 @@ export default function TrialMap({
         .filter((l) => l.geojson.features.length > 0),
     [gisLayers]
   )
+
+  /** Total vertex count across non-point geometries — used to decide if we need
+   *  Leaflet's built-in Douglas-Peucker simplification for complex polygon/line layers. */
+  const heavyLayerIds = useMemo(() => {
+    const VERTEX_THRESHOLD = 5000
+    const set = new Set<string>()
+    for (const l of sanitizedGisLayers) {
+      let count = 0
+      for (const f of l.geojson.features) {
+        const g = f.geometry
+        if (!g || g.type === 'Point' || g.type === 'MultiPoint') continue
+        const json = JSON.stringify((g as any).coordinates)
+        // Fast approximation: count number of comma-separated number sequences
+        count += (json.match(/\d/g)?.length ?? 0) / 3
+        if (count > VERTEX_THRESHOLD) break
+      }
+      if (count > VERTEX_THRESHOLD) set.add(l.id)
+    }
+    return set
+  }, [sanitizedGisLayers])
 
   // Pre-compute point data for each GIS layer (used for heatmap rendering)
   const gisLayerPointData = useMemo(
@@ -589,6 +642,29 @@ export default function TrialMap({
     () => sanitizedGisLayers.map((l) => l.geojson),
     [sanitizedGisLayers]
   )
+
+  // Stable callbacks for GeoJSON rendering — prevents react-leaflet from
+  // re-processing all features on every parent re-render.
+  const pointToLayerFn = useCallback((_feature: any, latlng: L.LatLng) => {
+    return L.circleMarker(latlng, {
+      radius: 6,
+      color: '#3b82f6',
+      fillColor: '#3b82f6',
+      fillOpacity: 0.7,
+      weight: 2,
+    })
+  }, [])
+
+  const onEachFeatureFn = useCallback((feature: any, leafletLayer: L.Layer) => {
+    const props = feature.properties
+    if (props && Object.keys(props).length > 0) {
+      const html = Object.entries(props)
+        .filter(([, v]) => v != null && v !== '')
+        .map(([k, v]) => `<b>${k}:</b> ${v}`)
+        .join('<br/>')
+      if (html) leafletLayer.bindPopup(`<div class="text-xs">${html}</div>`)
+    }
+  }, [])
 
   // Compute metric overlay data when a metric is active
   const metricLayerData = useMemo(() => {
@@ -1022,6 +1098,7 @@ export default function TrialMap({
           zoom={defaultZoom}
           className="h-full w-full"
           scrollWheelZoom={true}
+          preferCanvas={true}
         >
           <LayersControl position="topright">
             <LayersControl.BaseLayer checked name="Street">
@@ -1092,38 +1169,26 @@ export default function TrialMap({
                 )
               }
 
-              return (
-                <LayersControl.Overlay checked key={layer.id} name={layer.name}>
-                  <GeoJSON
-                    data={layer.geojson}
-                    style={() => ({
-                      color,
-                      weight: layer.style?.weight ?? 2,
-                      fillOpacity: layer.style?.fillOpacity ?? 0.15,
-                      fillColor: color,
-                    })}
-                    pointToLayer={(feature, latlng) => {
-                      return L.circleMarker(latlng, {
-                        radius: 6,
+              {
+                const isHeavy = heavyLayerIds.has(layer.id)
+                return (
+                  <LayersControl.Overlay checked key={layer.id} name={layer.name}>
+                    <GeoJSON
+                      data={layer.geojson}
+                      style={() => ({
                         color,
+                        weight: layer.style?.weight ?? 2,
+                        fillOpacity: layer.style?.fillOpacity ?? 0.15,
                         fillColor: color,
-                        fillOpacity: 0.7,
-                        weight: 2,
-                      })
-                    }}
-                    onEachFeature={(feature, leafletLayer) => {
-                      const props = feature.properties
-                      if (props && Object.keys(props).length > 0) {
-                        const html = Object.entries(props)
-                          .filter(([, v]) => v != null && v !== '')
-                          .map(([k, v]) => `<b>${k}:</b> ${v}`)
-                          .join('<br/>')
-                        if (html) leafletLayer.bindPopup(`<div class="text-xs">${html}</div>`)
-                      }
-                    }}
-                  />
-                </LayersControl.Overlay>
-              )
+                        // Increase Douglas-Peucker simplification for vertex-heavy layers
+                        ...(isHeavy ? { smoothFactor: 3 } : {}),
+                      })}
+                      pointToLayer={pointToLayerFn}
+                      onEachFeature={onEachFeatureFn}
+                    />
+                  </LayersControl.Overlay>
+                )
+              }
             })}
 
             {/* Metric overlay (color-coded points) */}
