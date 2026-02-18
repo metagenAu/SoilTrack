@@ -1123,6 +1123,7 @@ export default function TrialMap({
           zoom={defaultZoom}
           className="h-full w-full"
           scrollWheelZoom={true}
+          preferCanvas={true}
         >
           <LayersControl position="topright">
             <LayersControl.BaseLayer checked name="Street">
@@ -1160,8 +1161,8 @@ export default function TrialMap({
                     <CircleMarker
                       key={i}
                       center={[s.latitude, s.longitude]}
-                      radius={6}
-                      pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 0.7, weight: 2 }}
+                      radius={3}
+                      pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 0.7, weight: 1 }}
                     >
                       <Popup>
                         <div className="text-sm">
@@ -1228,16 +1229,16 @@ export default function TrialMap({
                           const n = Number(raw)
                           if (!isNaN(n)) {
                             const c = metricColor(n, metricLayerData.min, metricLayerData.max)
-                            return L.circleMarker(latlng, { radius: 8, color: c, fillColor: c, fillOpacity: 0.85, weight: 1 })
+                            return L.circleMarker(latlng, { radius: 4, color: c, fillColor: c, fillOpacity: 0.85, weight: 1 })
                           }
                         }
                       }
                       return L.circleMarker(latlng, {
-                        radius: 6,
+                        radius: 3,
                         color,
                         fillColor: color,
                         fillOpacity: 0.7,
-                        weight: 2,
+                        weight: 1,
                       })
                     }}
                     onEachFeature={(feature, leafletLayer) => {
@@ -1265,8 +1266,8 @@ export default function TrialMap({
                       <CircleMarker
                         key={`metric-${i}`}
                         center={[pt.lat, pt.lng]}
-                        radius={10}
-                        pathOptions={{ color, fillColor: color, fillOpacity: 0.85, weight: 2 }}
+                        radius={5}
+                        pathOptions={{ color, fillColor: color, fillOpacity: 0.85, weight: 1 }}
                       >
                         <Popup>
                           <div className="text-sm">
@@ -1299,8 +1300,8 @@ export default function TrialMap({
                       <CircleMarker
                         key={i}
                         center={[pt.lat, pt.lng]}
-                        radius={7}
-                        pathOptions={{ color, fillColor: color, fillOpacity: 0.7, weight: 2 }}
+                        radius={3}
+                        pathOptions={{ color, fillColor: color, fillOpacity: 0.7, weight: 1 }}
                       >
                         <Popup>
                           <div className="text-sm">
