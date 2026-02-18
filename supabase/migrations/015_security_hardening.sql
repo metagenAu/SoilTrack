@@ -393,4 +393,202 @@ CREATE POLICY "No direct insert to audit_log"
   ON audit_log FOR INSERT
   WITH CHECK (false);
 
+-- ============================================================
+-- Issue #2: Add role check to load_and_track RPC
+-- The function is SECURITY DEFINER (bypasses RLS), so a readonly
+-- user could call it directly to insert data. Add a guard.
+-- ============================================================
+CREATE OR REPLACE FUNCTION load_and_track(
+  p_table_name TEXT,
+  p_trial_id TEXT,
+  p_file_type TEXT,
+  p_filename TEXT,
+  p_rows JSONB,
+  p_raw_upload_id UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_count INT;
+  v_result JSONB;
+BEGIN
+  -- Role guard: only upload+ can call this function
+  IF get_my_role() NOT IN ('admin', 'upload') THEN
+    RAISE EXCEPTION 'Insufficient permissions: upload role required';
+  END IF;
+
+  -- Validate table name to prevent injection
+  IF p_table_name NOT IN (
+    'soil_health_samples', 'soil_chemistry', 'plot_data',
+    'tissue_chemistry', 'sample_metadata'
+  ) THEN
+    RAISE EXCEPTION 'Invalid table name: %', p_table_name;
+  END IF;
+
+  -- Insert rows with ON CONFLICT DO UPDATE (upsert) based on the natural key.
+  IF p_table_name = 'soil_health_samples' THEN
+    INSERT INTO soil_health_samples (trial_id, sample_no, date, property, block, barcode, latitude, longitude, raw_data)
+    SELECT
+      p_trial_id,
+      COALESCE(r->>'sample_no', ''),
+      CASE WHEN r->>'date' IS NOT NULL AND r->>'date' != '' THEN (r->>'date')::date ELSE NULL END,
+      COALESCE(r->>'property', ''),
+      COALESCE(r->>'block', ''),
+      COALESCE(r->>'barcode', ''),
+      CASE WHEN r->>'latitude' IS NOT NULL AND r->>'latitude' != '' THEN (r->>'latitude')::decimal ELSE NULL END,
+      CASE WHEN r->>'longitude' IS NOT NULL AND r->>'longitude' != '' THEN (r->>'longitude')::decimal ELSE NULL END,
+      r->'raw_data'
+    FROM jsonb_array_elements(p_rows) AS r
+    ON CONFLICT (trial_id, COALESCE(sample_no, ''), COALESCE(date, '1900-01-01'::date))
+    DO UPDATE SET
+      property = EXCLUDED.property,
+      block = EXCLUDED.block,
+      barcode = EXCLUDED.barcode,
+      latitude = EXCLUDED.latitude,
+      longitude = EXCLUDED.longitude,
+      raw_data = EXCLUDED.raw_data;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+
+  ELSIF p_table_name = 'soil_chemistry' THEN
+    INSERT INTO soil_chemistry (trial_id, sample_no, date, block, barcode, metric, value, unit, raw_data)
+    SELECT
+      p_trial_id,
+      COALESCE(r->>'sample_no', ''),
+      CASE WHEN r->>'date' IS NOT NULL AND r->>'date' != '' THEN (r->>'date')::date ELSE NULL END,
+      COALESCE(r->>'block', ''),
+      COALESCE(r->>'barcode', ''),
+      COALESCE(r->>'metric', ''),
+      CASE WHEN r->>'value' IS NOT NULL AND r->>'value' != '' THEN (r->>'value')::decimal ELSE NULL END,
+      COALESCE(r->>'unit', ''),
+      r->'raw_data'
+    FROM jsonb_array_elements(p_rows) AS r
+    ON CONFLICT (trial_id, COALESCE(sample_no, ''), COALESCE(date, '1900-01-01'::date), COALESCE(metric, ''))
+    DO UPDATE SET
+      block = EXCLUDED.block,
+      barcode = EXCLUDED.barcode,
+      value = EXCLUDED.value,
+      unit = EXCLUDED.unit,
+      raw_data = EXCLUDED.raw_data;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+
+  ELSIF p_table_name = 'plot_data' THEN
+    INSERT INTO plot_data (trial_id, plot, trt_number, rep, block, yield_t_ha, plant_count, vigour, disease_score, raw_data)
+    SELECT
+      p_trial_id,
+      COALESCE(r->>'plot', ''),
+      CASE WHEN r->>'trt_number' IS NOT NULL AND r->>'trt_number' != '' THEN (r->>'trt_number')::int ELSE NULL END,
+      CASE WHEN r->>'rep' IS NOT NULL AND r->>'rep' != '' THEN (r->>'rep')::int ELSE NULL END,
+      COALESCE(r->>'block', ''),
+      CASE WHEN r->>'yield_t_ha' IS NOT NULL AND r->>'yield_t_ha' != '' THEN (r->>'yield_t_ha')::decimal ELSE NULL END,
+      CASE WHEN r->>'plant_count' IS NOT NULL AND r->>'plant_count' != '' THEN (r->>'plant_count')::int ELSE NULL END,
+      CASE WHEN r->>'vigour' IS NOT NULL AND r->>'vigour' != '' THEN (r->>'vigour')::decimal ELSE NULL END,
+      CASE WHEN r->>'disease_score' IS NOT NULL AND r->>'disease_score' != '' THEN (r->>'disease_score')::decimal ELSE NULL END,
+      r->'raw_data'
+    FROM jsonb_array_elements(p_rows) AS r
+    ON CONFLICT (trial_id, COALESCE(plot, ''), COALESCE(trt_number::text, ''), COALESCE(rep::text, ''))
+    DO UPDATE SET
+      block = EXCLUDED.block,
+      yield_t_ha = EXCLUDED.yield_t_ha,
+      plant_count = EXCLUDED.plant_count,
+      vigour = EXCLUDED.vigour,
+      disease_score = EXCLUDED.disease_score,
+      raw_data = EXCLUDED.raw_data;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+
+  ELSIF p_table_name = 'tissue_chemistry' THEN
+    INSERT INTO tissue_chemistry (trial_id, sample_no, date, tissue_type, block, barcode, metric, value, unit, raw_data)
+    SELECT
+      p_trial_id,
+      COALESCE(r->>'sample_no', ''),
+      CASE WHEN r->>'date' IS NOT NULL AND r->>'date' != '' THEN (r->>'date')::date ELSE NULL END,
+      COALESCE(r->>'tissue_type', ''),
+      COALESCE(r->>'block', ''),
+      COALESCE(r->>'barcode', ''),
+      COALESCE(r->>'metric', ''),
+      CASE WHEN r->>'value' IS NOT NULL AND r->>'value' != '' THEN (r->>'value')::decimal ELSE NULL END,
+      COALESCE(r->>'unit', ''),
+      r->'raw_data'
+    FROM jsonb_array_elements(p_rows) AS r
+    ON CONFLICT (trial_id, COALESCE(sample_no, ''), COALESCE(date, '1900-01-01'::date), COALESCE(tissue_type, ''), COALESCE(metric, ''))
+    DO UPDATE SET
+      block = EXCLUDED.block,
+      barcode = EXCLUDED.barcode,
+      value = EXCLUDED.value,
+      unit = EXCLUDED.unit,
+      raw_data = EXCLUDED.raw_data;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+
+  ELSIF p_table_name = 'sample_metadata' THEN
+    INSERT INTO sample_metadata (trial_id, assay_type, sample_no, date, block, treatment, metric, value, unit, raw_data)
+    SELECT
+      p_trial_id,
+      COALESCE(r->>'assay_type', ''),
+      COALESCE(r->>'sample_no', ''),
+      CASE WHEN r->>'date' IS NOT NULL AND r->>'date' != '' THEN (r->>'date')::date ELSE NULL END,
+      COALESCE(r->>'block', ''),
+      CASE WHEN r->>'treatment' IS NOT NULL AND r->>'treatment' != '' THEN (r->>'treatment')::int ELSE NULL END,
+      COALESCE(r->>'metric', ''),
+      CASE WHEN r->>'value' IS NOT NULL AND r->>'value' != '' THEN (r->>'value')::decimal ELSE NULL END,
+      COALESCE(r->>'unit', ''),
+      r->'raw_data'
+    FROM jsonb_array_elements(p_rows) AS r
+    ON CONFLICT (trial_id, COALESCE(assay_type, ''), COALESCE(sample_no, ''), COALESCE(metric, ''))
+    DO UPDATE SET
+      date = EXCLUDED.date,
+      block = EXCLUDED.block,
+      treatment = EXCLUDED.treatment,
+      value = EXCLUDED.value,
+      unit = EXCLUDED.unit,
+      raw_data = EXCLUDED.raw_data;
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+  END IF;
+
+  -- Update trial_data_files tracking
+  INSERT INTO trial_data_files (trial_id, file_type, has_data, last_updated)
+  VALUES (p_trial_id, p_file_type, true, now())
+  ON CONFLICT (trial_id, file_type)
+  DO UPDATE SET has_data = true, last_updated = now();
+
+  -- Mark raw_upload as loaded (if one was provided)
+  IF p_raw_upload_id IS NOT NULL THEN
+    UPDATE raw_uploads
+    SET status = 'loaded', records_loaded = v_count
+    WHERE id = p_raw_upload_id;
+  END IF;
+
+  v_result := jsonb_build_object('status', 'success', 'records', v_count);
+  RETURN v_result;
+END;
+$$;
+
+-- ============================================================
+-- Issue #3: Restrict storage INSERT/UPDATE/DELETE to upload+ role
+-- ============================================================
+-- trial-photos INSERT
+DROP POLICY IF EXISTS "Authenticated users can upload trial photos" ON storage.objects;
+CREATE POLICY "Upload+ can upload trial photos"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'trial-photos' AND auth.role() = 'authenticated' AND get_my_role() IN ('admin', 'upload'));
+
+-- trial-photos DELETE
+DROP POLICY IF EXISTS "Authenticated users can delete trial photos" ON storage.objects;
+CREATE POLICY "Admin can delete trial photos"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'trial-photos' AND auth.role() = 'authenticated' AND get_my_role() = 'admin');
+
+-- trial-gis INSERT
+DROP POLICY IF EXISTS "Authenticated users can upload gis" ON storage.objects;
+CREATE POLICY "Upload+ can upload gis"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'trial-gis' AND auth.role() = 'authenticated' AND get_my_role() IN ('admin', 'upload'));
+
+-- trial-gis UPDATE
+DROP POLICY IF EXISTS "Authenticated users can update gis" ON storage.objects;
+CREATE POLICY "Upload+ can update gis"
+  ON storage.objects FOR UPDATE
+  USING (bucket_id = 'trial-gis' AND auth.role() = 'authenticated' AND get_my_role() IN ('admin', 'upload'))
+  WITH CHECK (bucket_id = 'trial-gis' AND auth.role() = 'authenticated' AND get_my_role() IN ('admin', 'upload'));
+
 NOTIFY pgrst, 'reload schema';

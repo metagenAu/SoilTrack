@@ -5,6 +5,7 @@ import { parseTrialSummary } from '@/lib/parsers/parseTrialSummary'
 import { runPipeline, parseRawContent } from '@/lib/upload-pipeline'
 import { COLUMN_MAPS, extractTrialId } from '@/lib/parsers/column-maps'
 import { getUserRole, canUpload } from '@/lib/auth'
+import { validatePhotoFile } from '@/lib/api-utils'
 
 export const maxDuration = 60
 
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
     } catch (err: any) {
       console.error('Folder upload init error:', err)
       return NextResponse.json(
-        { error: err?.message || 'Failed to read upload data', results: [] },
+        { error: 'Failed to read upload data', results: [] },
         { status: 400 }
       )
     }
@@ -170,6 +171,13 @@ export async function POST(request: NextRequest) {
             continue
           }
 
+          // Validate photo file type and size
+          const photoError = validatePhotoFile(file)
+          if (photoError) {
+            results.push({ filename, type: typeLabel, status: 'error', detail: photoError })
+            continue
+          }
+
           const ext = filename.split('.').pop()?.toLowerCase() || 'jpg'
           const storagePath = `${targetTrialId}/${crypto.randomUUID()}.${ext}`
 
@@ -263,7 +271,7 @@ export async function POST(request: NextRequest) {
           filename,
           type: TYPE_LABELS[classification],
           status: 'error',
-          detail: err?.message || 'Processing failed',
+          detail: 'Processing failed. Please check the file format and try again.',
         })
 
         try {
@@ -292,7 +300,7 @@ export async function POST(request: NextRequest) {
   } catch (err: any) {
     console.error('Folder upload unexpected error:', err)
     return NextResponse.json(
-      { error: err?.message || 'Unexpected server error', results: [] },
+      { error: 'An unexpected error occurred. Please try again.', results: [] },
       { status: 500 }
     )
   }

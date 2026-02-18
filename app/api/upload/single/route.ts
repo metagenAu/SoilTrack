@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     formData = await request.formData()
   } catch (err: any) {
     console.error('Single upload init error:', err)
-    return NextResponse.json({ status: 'error', detail: err?.message || 'Failed to read upload data' }, { status: 400 })
+    return NextResponse.json({ status: 'error', detail: 'Failed to read upload data' }, { status: 400 })
   }
 
   const file = formData.get('file') as File | null

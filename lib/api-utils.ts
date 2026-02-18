@@ -33,7 +33,12 @@ export function safeErrorResponse(
   context: string,
   status = 500
 ): NextResponse {
-  const message = err instanceof Error ? err.message : String(err)
+  const message =
+    err instanceof Error
+      ? err.message
+      : typeof err === 'object' && err !== null && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : String(err)
   console.error(`[${context}]`, message)
   return NextResponse.json(
     { error: 'An internal error occurred. Please try again.' },
@@ -136,7 +141,7 @@ export function validateRedirectPath(path: string): string {
   if (
     !path.startsWith('/') ||
     path.startsWith('//') ||
-    path.includes(':\\') ||
+    path.includes('\\') ||
     path.includes('://')
   ) {
     return '/dashboard'
