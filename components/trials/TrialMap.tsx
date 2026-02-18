@@ -479,7 +479,7 @@ export default function TrialMap({
   }, [trialCoord, samplePoints, customLayers])
 
   const allGeoJsons = useMemo(
-    () => gisLayers.map((l) => l.geojson),
+    () => gisLayers.map((l) => l.geojson).filter(Boolean),
     [gisLayers]
   )
 
@@ -971,6 +971,7 @@ export default function TrialMap({
 
             {/* GIS layers */}
             {gisLayers.map((layer, idx) => {
+              if (!layer.geojson || layer.geojson.type !== 'FeatureCollection') return null
               const color = layer.style?.color || LAYER_COLORS[idx % LAYER_COLORS.length]
               return (
                 <LayersControl.Overlay checked key={layer.id} name={layer.name}>
