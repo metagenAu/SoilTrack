@@ -9,9 +9,10 @@ Trial management and soil health tracking platform for Metagen Australia.
 - **Styling:** Tailwind CSS 3 with custom brand tokens defined in `tailwind.config.ts`
 - **Fonts:** Instrument Sans (body) + JetBrains Mono (code), loaded via `next/font/google`
 - **Charts:** Recharts
-- **Maps:** Leaflet + react-leaflet
+- **Maps:** Leaflet + react-leaflet + leaflet.heat (heatmaps for dense point layers)
 - **File parsing:** PapaParse (CSV), xlsx (Excel), shpjs (Shapefile), @tmcw/togeojson (KML/KMZ), jszip
 - **Icons:** lucide-react
+- **Types:** @types/geojson, @types/leaflet, custom stubs in `types/` (leaflet-heat, shpjs)
 
 ## Commands
 
@@ -36,6 +37,7 @@ app/                        # Next.js App Router
 │   ├── layout.tsx          # UserRoleProvider + AppShell wrapper
 │   ├── dashboard/          # Overview stats + trial list
 │   ├── trials/             # Trial list and trial detail ([id])
+│   │   └── [id]/           # TrialDetailTabs + server data fetching
 │   ├── analytics/          # Portfolio analytics (map + summary)
 │   ├── analysis/           # Statistical charts (bar + boxplot)
 │   ├── data-hub/           # Upload interface (folder, single, paste)
@@ -49,7 +51,18 @@ components/
 ├── data-hub/               # FolderUpload, SingleFileUpload, PasteData, ColumnReview, UploadLog
 ├── layout/                 # AppShell, Sidebar, PageHeader
 ├── providers/              # UserRoleProvider (React context)
-├── trials/                 # Trial detail tabs: tables, maps, photos, editable fields
+├── trials/                 # TrialDetailTabs, tables, maps, photos, editable fields
+│   ├── TrialCard.tsx       # Trial list card
+│   ├── TrialMap.tsx        # Leaflet map with GIS layers, sample points, heatmaps
+│   ├── TrialMapWrapper.tsx # Dynamic import wrapper (SSR disabled for Leaflet)
+│   ├── TrialStatusToggle.tsx
+│   ├── EditableField.tsx   # Inline-editable trial metadata fields
+│   ├── ManagementLog.tsx   # Activity timeline per trial
+│   ├── SoilHealthTable.tsx
+│   ├── PlotDataTable.tsx
+│   ├── MetadataTable.tsx   # Assay results / sample metadata table
+│   ├── TreatmentsTable.tsx
+│   └── PhotosTab.tsx
 ├── landing/                # AnimatedCounter, ParticleNetwork
 ├── clients/                # ClientCard
 └── ui/                     # Button, Modal, StatCard, StatusPill, DataBadge, ProductTag
@@ -63,7 +76,7 @@ lib/
 │   ├── classify.ts         # Filename → FileClassification type
 │   ├── column-maps.ts      # Declarative column mapping configs (aliases, pivot modes)
 │   ├── generic-parser.ts   # Direct + wide-to-long pivot parser engine
-│   ├── gis.ts              # Client-side GIS parser (GeoJSON/KML/KMZ/Shapefile)
+│   ├── gis.ts              # Client-side GIS parser (GeoJSON/KML/KMZ/Shapefile → FeatureCollection)
 │   ├── parseTrialSummary.ts # Excel workbook parser for trial setup
 │   └── parse*.ts           # Per-type parsers (SoilHealth, SoilChemistry, PlotData, etc.)
 └── supabase/
@@ -72,8 +85,12 @@ lib/
     ├── admin.ts            # Service-role client (bypasses RLS, for landing stats)
     └── middleware.ts        # Session refresh + auth redirect logic
 
+types/                      # Custom type declarations
+├── leaflet-heat.d.ts       # Type stub for leaflet.heat plugin
+└── shpjs.d.ts              # Type stub for shpjs library
+
 supabase/
-├── migrations/             # 001–007: sequential SQL migrations
+├── migrations/             # 001–013: sequential SQL migrations
 ├── seed.sql                # Sample data (3 clients, 3 trials)
 └── templates/              # Branded email templates (invite, confirm, reset)
 ```
@@ -91,15 +108,28 @@ supabase/
 
 The upload flow is: **parse raw file → stage in `raw_uploads` → apply column mapping → call `load_and_track()` RPC** (atomic upsert + tracking). Column mappings are declarative in `lib/parsers/column-maps.ts` — add new aliases there to support different lab formats without code changes. If unmapped columns exist, the upload pauses in `needs_review` status for user column review.
 
+### GIS / Spatial Layers
+
+GIS files are parsed **client-side** in `lib/parsers/gis.ts` — supports GeoJSON, KML, KMZ, and Shapefiles (as ZIP). Multi-layer shapefile ZIPs (e.g. John Deere Ops exports containing multiple `.shp` files) are automatically split into separate named layers. Raw files are stored in the `trial-gis` Supabase Storage bucket; parsed GeoJSON is stored as JSONB in `trial_gis_layers`. Large GeoJSON payloads are uploaded to storage rather than sent inline to avoid 413 errors.
+
+The trial Map tab renders layers on a Leaflet map with:
+- Trial GPS marker and soil sample point markers
+- GIS layers with toggleable visibility and custom styling
+- Automatic heatmap rendering (via `leaflet.heat`) for dense point layers (>100 points)
+- Canvas rendering for performance with large datasets
+- Custom map layers from shapefile attribute columns (stored in `custom_map_layers`)
+
+Raw `.shp` files are rejected — users must upload the complete shapefile as a `.zip` archive.
+
 ### Roles
 
 Three roles: `admin`, `upload`, `readonly`. Checked server-side via `getUserRole()` in `lib/auth.ts` and client-side via `UserRoleProvider` context. All upload endpoints require `upload` or `admin`; delete/modify endpoints require `admin`.
 
 ### Database
 
-All data access goes through the Supabase JS client — no ORM. Key tables: `trials`, `treatments`, `soil_health_samples`, `soil_chemistry`, `plot_data`, `tissue_chemistry`, `sample_metadata`, `trial_photos`, `trial_gis_layers`, `raw_uploads`, `upload_log`, `trial_data_files`, `profiles`. The `load_and_track()` RPC function handles atomic upserts with natural-key deduplication.
+All data access goes through the Supabase JS client — no ORM. Key tables: `trials`, `treatments`, `soil_health_samples`, `soil_chemistry`, `plot_data`, `tissue_chemistry`, `sample_metadata`, `management_log`, `trial_photos`, `trial_gis_layers`, `custom_map_layers`, `raw_uploads`, `upload_log`, `trial_data_files`, `profiles`. The `load_and_track()` RPC function handles atomic upserts with natural-key deduplication.
 
-Migrations are in `supabase/migrations/` numbered 001–009. When adding new migrations, use the next sequential number.
+Migrations are in `supabase/migrations/` numbered 001–013. When adding new migrations, use the next sequential number.
 
 ### Data Model — Natural Keys
 
@@ -130,21 +160,29 @@ Migrations are in `supabase/migrations/` numbered 001–009. When adding new mig
 | `/api/upload/photos` | POST | Photo upload to storage |
 | `/api/upload/gis` | POST | GIS layer upload |
 | `/api/upload/gis/[layerId]` | DELETE | Delete GIS layer |
+| `/api/map-layers` | POST | Create custom map layer from shapefile attributes |
+| `/api/map-layers/[layerId]` | DELETE | Delete custom map layer |
 
 ## Key Conventions
 
 - **Path alias:** `@/*` maps to project root (configured in `tsconfig.json`)
 - **Imports:** Use `@/lib/...`, `@/components/...`, `@/app/...` for all imports
 - **File classification:** Based on filename keywords in `lib/parsers/classify.ts` — file types are `trialSummary`, `soilHealth`, `soilChemistry`, `plotData`, `tissueChemistry`, `sampleMetadata`, `photo`, `gis`
+  - `sampleMetadata` matches: `"assay result"`, `"assay data"`, `"sample metadata"`, `"sample_metadata"`
+  - `gis` matches extensions: `.shp`, `.dbf`, `.shx`, `.prj`, `.kml`, `.kmz`, `.geojson`
 - **Column mappings:** Declarative in `lib/parsers/column-maps.ts` — add aliases to support new lab formats without changing parser logic
 - **Brand colours:** Defined in `tailwind.config.ts` under `meta.*`, `green.*`, `brand.*` — use these instead of arbitrary colour values
 - **Utility classes:** Use `cn()` from `lib/utils.ts` for conditional class merging
 - **Date formatting:** Use `formatDate()` from `lib/utils.ts` (en-AU locale)
 - **Supabase clients:** Use `createServerSupabaseClient()` in server components/API routes, `createBrowserSupabaseClient()` in client components, `createAdminSupabaseClient()` only for public-facing stats (bypasses RLS)
+- **Leaflet SSR:** Map components must use `next/dynamic` with `ssr: false` because Leaflet requires `window`. See `TrialMapWrapper.tsx` for the pattern
 - **Body size:** Next.js config sets `serverActions.bodySizeLimit: '50mb'` for large uploads; `xlsx` is in `serverComponentsExternalPackages` to avoid webpack bundling issues
+- **Transpile packages:** `shpjs` and `but-unzip` are in `transpilePackages`; custom webpack config forces `browser` condition first for `but-unzip` to avoid Node.js entry in client bundles
 - **API route timeouts:** Upload routes export `maxDuration = 60` for Vercel serverless functions
 - **Auth flow:** Invite-only (no public signup). Users are invited via Supabase, accept via email link, set password at `/reset-password`. PKCE flow with AMR-based invite detection in `/auth/callback`
 - **RLS:** All tables have Row Level Security enabled. Policies grant authenticated users access; `profiles` has fine-grained admin-only update policies
+- **Storage buckets:** `trial-photos` (trial photo files), `trial-gis` (raw GIS files — shapefiles, KML, etc.)
+- **GIS validation:** `lib/parsers/gis.ts` validates geometry types and filters out null/invalid geometries before storing. GeometryCollection features with null children are cleaned recursively
 
 ## Environment Variables
 
