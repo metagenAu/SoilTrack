@@ -304,7 +304,7 @@ export default function FieldMap({
 
       // Extract only polygon features for boundary
       const polygonFeatures = geojson.features.filter(
-        (f) => f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'
+        (f) => f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon'
       )
 
       if (polygonFeatures.length === 0) {

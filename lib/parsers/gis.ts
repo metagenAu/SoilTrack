@@ -44,7 +44,11 @@ function isValidGeometry(geom: Geometry | null | undefined): boolean {
  * unsupported geometries that would cause Leaflet to throw.
  */
 export function sanitizeFeatures(fc: FeatureCollection): FeatureCollection {
-  const clean = fc.features.filter((f): f is Feature => {
+  if (!fc || typeof fc !== 'object') {
+    return { type: 'FeatureCollection', features: [] }
+  }
+  const features = Array.isArray(fc.features) ? fc.features : []
+  const clean = features.filter((f): f is Feature => {
     if (!f || f.type !== 'Feature') return false
     return isValidGeometry(f.geometry)
   })
@@ -185,7 +189,9 @@ async function parseShapefileGroupsViaJSZip(
     try {
       const miniBuffer = await mini.generateAsync({ type: 'arraybuffer' })
       const result = await shp(miniBuffer)
-      const fc = (Array.isArray(result) ? result[0] : result) as FeatureCollection
+      const raw = Array.isArray(result) ? result[0] : result
+      if (!raw) continue
+      const fc = raw as FeatureCollection
       const sanitized = sanitizeFeatures(fc)
       if (sanitized.features.length > 0) {
         layers.push({ name: displayName, geojson: sanitized })

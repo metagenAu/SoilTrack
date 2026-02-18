@@ -575,7 +575,7 @@ export default function TrialMap({
       gisLayers
         .filter((l) => l.geojson && l.geojson.type === 'FeatureCollection')
         .map((l) => ({ ...l, geojson: sanitizeFeatures(l.geojson) }))
-        .filter((l) => l.geojson.features.length > 0),
+        .filter((l) => l.geojson.features?.length > 0),
     [gisLayers]
   )
 
