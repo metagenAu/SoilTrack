@@ -54,6 +54,7 @@ export default function TrialMap({ trials, getCropColor }: TrialMapProps) {
       zoom={4}
       style={{ height: '100%', width: '100%' }}
       scrollWheelZoom={true}
+      preferCanvas={true}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -64,10 +65,10 @@ export default function TrialMap({ trials, getCropColor }: TrialMapProps) {
         <CircleMarker
           key={trial.id}
           center={[trial.lat, trial.lng]}
-          radius={9}
+          radius={5}
           pathOptions={{
             color: '#FFFFFF',
-            weight: 2,
+            weight: 1.5,
             fillColor: getCropColor(trial.crop),
             fillOpacity: 0.9,
           }}
