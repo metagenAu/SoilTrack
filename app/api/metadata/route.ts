@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { runPipeline } from '@/lib/upload-pipeline'
 import { getUserRole, canUpload, canModify } from '@/lib/auth'
+import { requireAuth, safeErrorResponse } from '@/lib/api-utils'
 
 export const maxDuration = 60
 
@@ -10,6 +11,9 @@ export const maxDuration = 60
  * Query sample metadata by trial and optionally by assay type
  */
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.authenticated) return auth.response
+
   const supabase = createServerSupabaseClient()
   const trialId = request.nextUrl.searchParams.get('trialId')
   const assayType = request.nextUrl.searchParams.get('assayType')
@@ -24,9 +28,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { data, error } = await query.order('sample_no')
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+  if (error) return safeErrorResponse(error, 'GET /api/metadata')
 
   return NextResponse.json({ data })
 }
@@ -124,7 +126,7 @@ export async function POST(request: NextRequest) {
         status: 'error',
         detail: err.message,
       })
-      return NextResponse.json({ status: 'error', detail: err.message || 'Import failed' })
+      return safeErrorResponse(err, 'POST /api/metadata (json)')
     }
   }
 
@@ -164,7 +166,7 @@ export async function POST(request: NextRequest) {
         status: 'error',
         detail: err.message,
       })
-      return NextResponse.json({ status: 'error', detail: err.message || 'Import failed' })
+      return safeErrorResponse(err, 'POST /api/metadata (formdata)')
     }
   }
 
@@ -195,9 +197,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   const { error } = await query
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+  if (error) return safeErrorResponse(error, 'DELETE /api/metadata')
 
   return NextResponse.json({ status: 'success', detail: 'Metadata deleted' })
 }

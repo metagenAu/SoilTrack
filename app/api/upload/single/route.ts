@@ -174,6 +174,6 @@ export async function POST(request: NextRequest) {
         detail: err?.message,
       })
     } catch (logErr) { console.error('upload_log insert failed:', logErr) }
-    return NextResponse.json({ status: 'error', detail: err?.message || 'Processing failed' })
+    return NextResponse.json({ status: 'error', detail: 'Processing failed. Please check the file format and try again.' })
   }
 }

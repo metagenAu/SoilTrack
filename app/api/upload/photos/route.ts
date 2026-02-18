@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getUserRole, canUpload } from '@/lib/auth'
+import { validatePhotoFile, safeErrorResponse } from '@/lib/api-utils'
 
 export const maxDuration = 60
 
@@ -30,15 +31,24 @@ export async function POST(request: NextRequest) {
   const results: { filename: string; status: 'success' | 'error'; detail?: string }[] = []
 
   for (const file of files) {
+    // H2: Validate file type and size
+    const validationError = validatePhotoFile(file)
+    if (validationError) {
+      results.push({ filename: file.name, status: 'error', detail: validationError })
+      continue
+    }
+
     try {
       const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-      const storagePath = `${trialId}/${crypto.randomUUID()}.${ext}`
+      const allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif']
+      const safeExt = allowedExts.includes(ext) ? ext : 'jpg'
+      const storagePath = `${trialId}/${crypto.randomUUID()}.${safeExt}`
 
       const buffer = await file.arrayBuffer()
       const { error: storageError } = await supabase.storage
         .from('trial-photos')
         .upload(storagePath, buffer, {
-          contentType: file.type || `image/${ext}`,
+          contentType: file.type || `image/${safeExt}`,
           upsert: false,
         })
 
@@ -54,7 +64,8 @@ export async function POST(request: NextRequest) {
 
       results.push({ filename: file.name, status: 'success' })
     } catch (err: any) {
-      results.push({ filename: file.name, status: 'error', detail: err.message || 'Upload failed' })
+      console.error(`Photo upload error for ${file.name}:`, err?.message)
+      results.push({ filename: file.name, status: 'error', detail: 'Upload failed' })
     }
   }
 

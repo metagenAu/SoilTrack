@@ -20,8 +20,9 @@ export async function DELETE(
     .eq('id', layerId)
 
   if (deleteError) {
+    console.error('[DELETE /api/map-layers/[layerId]]', deleteError.message)
     return NextResponse.json(
-      { error: `Delete failed: ${deleteError.message}` },
+      { error: 'Failed to delete layer. Please try again.' },
       { status: 500 }
     )
   }

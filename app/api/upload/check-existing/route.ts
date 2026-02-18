@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { requireAuth } from '@/lib/api-utils'
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.authenticated) return auth.response
+
   const trialId = request.nextUrl.searchParams.get('trialId')
   if (!trialId) {
     return NextResponse.json({ fileTypes: [] })

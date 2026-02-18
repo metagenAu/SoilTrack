@@ -54,8 +54,9 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (dbError) {
+    console.error('[POST /api/map-layers]', dbError.message)
     return NextResponse.json(
-      { error: `Database insert failed: ${dbError.message}` },
+      { error: 'Failed to save map layer. Please try again.' },
       { status: 500 }
     )
   }

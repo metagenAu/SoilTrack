@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { requireAuth, safeErrorResponse } from '@/lib/api-utils'
 
 interface MetricStats {
   metric: string
@@ -68,6 +69,9 @@ function computeStats(values: number[]): Omit<GroupStats, 'label' | 'values'> {
  * Returns { metrics: MetricStats[] }
  */
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.authenticated) return auth.response
+
   const supabase = createServerSupabaseClient()
   const params = request.nextUrl.searchParams
 
@@ -92,25 +96,25 @@ export async function GET(request: NextRequest) {
     if (trialIds.length > 0) query = query.in('trial_id', trialIds)
     if (assayType) query = query.eq('assay_type', assayType)
     const { data, error } = await query
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return safeErrorResponse(error, 'GET /api/analysis')
     rawData = data || []
   } else if (source === 'soilChemistry') {
     let query = supabase.from('soil_chemistry').select('*')
     if (trialIds.length > 0) query = query.in('trial_id', trialIds)
     const { data, error } = await query
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return safeErrorResponse(error, 'GET /api/analysis')
     rawData = data || []
   } else if (source === 'tissueChemistry') {
     let query = supabase.from('tissue_chemistry').select('*')
     if (trialIds.length > 0) query = query.in('trial_id', trialIds)
     const { data, error } = await query
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return safeErrorResponse(error, 'GET /api/analysis')
     rawData = data || []
   } else if (source === 'plotData') {
     let query = supabase.from('plot_data').select('*')
     if (trialIds.length > 0) query = query.in('trial_id', trialIds)
     const { data, error } = await query
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return safeErrorResponse(error, 'GET /api/analysis')
     // Pivot plot data into long format with synthetic metrics
     rawData = []
     for (const row of data || []) {

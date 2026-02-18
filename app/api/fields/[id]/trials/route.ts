@@ -1,10 +1,15 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { requireAuth, safeErrorResponse } from '@/lib/api-utils'
+import { canUpload, canModify } from '@/lib/auth'
 
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAuth()
+  if (!auth.authenticated) return auth.response
+
   const supabase = createServerSupabaseClient()
   const { data, error } = await supabase
     .from('field_trials')
@@ -12,7 +17,7 @@ export async function GET(
     .eq('field_id', params.id)
     .order('created_at')
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return safeErrorResponse(error, 'GET /api/fields/[id]/trials')
   return NextResponse.json(data)
 }
 
@@ -20,6 +25,12 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAuth()
+  if (!auth.authenticated) return auth.response
+  if (!canUpload(auth.role)) {
+    return NextResponse.json({ error: 'Upload permission required' }, { status: 403 })
+  }
+
   const supabase = createServerSupabaseClient()
   const body = await request.json()
 
@@ -44,7 +55,7 @@ export async function POST(
     if (error.code === '23505') {
       return NextResponse.json({ error: 'This trial is already linked to this field' }, { status: 409 })
     }
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return safeErrorResponse(error, 'POST /api/fields/[id]/trials')
   }
   return NextResponse.json(data, { status: 201 })
 }
@@ -53,6 +64,12 @@ export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAuth()
+  if (!auth.authenticated) return auth.response
+  if (!canModify(auth.role)) {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
+
   const supabase = createServerSupabaseClient()
   const { searchParams } = new URL(request.url)
   const trialId = searchParams.get('trial_id')
@@ -67,6 +84,6 @@ export async function DELETE(
     .eq('field_id', params.id)
     .eq('trial_id', trialId)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return safeErrorResponse(error, 'DELETE /api/fields/[id]/trials')
   return NextResponse.json({ ok: true })
 }

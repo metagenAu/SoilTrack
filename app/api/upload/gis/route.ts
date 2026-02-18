@@ -43,8 +43,9 @@ export async function POST(request: NextRequest) {
         .from('trial-gis')
         .download(geojsonPath)
       if (downloadError || !blob) {
+        console.error('[POST /api/upload/gis] Storage download failed:', downloadError?.message)
         return NextResponse.json(
-          { error: `Failed to read GeoJSON from storage: ${downloadError?.message}` },
+          { error: 'Failed to read GeoJSON from storage. Please try again.' },
           { status: 500 }
         )
       }
@@ -88,8 +89,9 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (dbError) {
+    console.error('[POST /api/upload/gis] DB insert failed:', dbError.message)
     return NextResponse.json(
-      { error: `Database insert failed: ${dbError.message}` },
+      { error: 'Failed to save GIS layer. Please try again.' },
       { status: 500 }
     )
   }
