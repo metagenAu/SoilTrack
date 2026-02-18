@@ -116,15 +116,44 @@ const METRIC_EXCLUDE = new Set([
 interface DiscoveredMetric {
   key: string
   label: string
-  source: 'raw_data' | 'chemistry' | 'custom'
+  source: 'raw_data' | 'chemistry' | 'custom' | 'gis'
   layerId?: string
   unit?: string
+}
+
+/**
+ * Scan GIS layer features (sample up to 100) to discover numeric attribute
+ * columns.  Only columns where >= 50 % of sampled features have a numeric
+ * value are included, filtering out ID / label-like columns.
+ */
+function discoverGISNumericColumns(fc: FeatureCollection): string[] {
+  const sampleSize = Math.min(fc.features.length, 100)
+  if (sampleSize === 0) return []
+
+  const counts = new Map<string, number>()
+  for (let i = 0; i < sampleSize; i++) {
+    const props = fc.features[i]?.properties
+    if (!props) continue
+    for (const [key, val] of Object.entries(props)) {
+      if (METRIC_EXCLUDE.has(key.toLowerCase().trim())) continue
+      if (val != null && val !== '' && !isNaN(Number(val))) {
+        counts.set(key, (counts.get(key) || 0) + 1)
+      }
+    }
+  }
+
+  const threshold = Math.max(1, sampleSize * 0.5)
+  return Array.from(counts.entries())
+    .filter(([, count]) => count >= threshold)
+    .map(([key]) => key)
+    .sort()
 }
 
 function discoverMetrics(
   samples: SamplePoint[],
   chemistry: SoilChemistryRow[],
-  customLayers: CustomMapLayer[]
+  customLayers: CustomMapLayer[],
+  gisLayers: GISLayer[]
 ): DiscoveredMetric[] {
   const metrics: DiscoveredMetric[] = []
   const seen = new Set<string>()
@@ -169,7 +198,49 @@ function discoverMetrics(
     }
   }
 
+  // Discover from GIS layer feature properties
+  for (const layer of gisLayers) {
+    const numericCols = discoverGISNumericColumns(layer.geojson)
+    for (const col of numericCols) {
+      const compositeKey = `gis:${layer.id}:${col}`
+      metrics.push({
+        key: compositeKey,
+        label: `${col} (${layer.name})`,
+        source: 'gis',
+        layerId: layer.id,
+      })
+    }
+  }
+
   return metrics.sort((a, b) => a.label.localeCompare(b.label))
+}
+
+/** Compute the centroid of a GeoJSON geometry as [lat, lng]. */
+function getFeatureCentroid(geometry: any): [number, number] | null {
+  if (!geometry) return null
+
+  const avgCoords = (coords: number[][]): [number, number] => {
+    let lat = 0, lng = 0
+    for (const c of coords) { lng += c[0]; lat += c[1] }
+    return [lat / coords.length, lng / coords.length]
+  }
+
+  switch (geometry.type) {
+    case 'Point':
+      return [geometry.coordinates[1], geometry.coordinates[0]]
+    case 'MultiPoint':
+    case 'LineString':
+      return geometry.coordinates.length > 0 ? avgCoords(geometry.coordinates) : null
+    case 'MultiLineString':
+    case 'Polygon':
+      return geometry.coordinates?.[0]?.length > 0 ? avgCoords(geometry.coordinates[0]) : null
+    case 'MultiPolygon': {
+      const all = geometry.coordinates.flatMap((poly: number[][][]) => poly[0] || [])
+      return all.length > 0 ? avgCoords(all) : null
+    }
+    default:
+      return null
+  }
 }
 
 function getMetricValue(
@@ -497,10 +568,21 @@ export default function TrialMap({
 
   const trialCoord = parseGPS(trial.gps)
 
+  // Sanitise GIS layer geojson at render time to guard against invalid
+  // geometries persisted in the DB before upload-time validation existed.
+  const sanitizedGisLayers = useMemo(
+    () =>
+      gisLayers
+        .filter((l) => l.geojson && l.geojson.type === 'FeatureCollection')
+        .map((l) => ({ ...l, geojson: sanitizeFeatures(l.geojson) }))
+        .filter((l) => l.geojson.features.length > 0),
+    [gisLayers]
+  )
+
   // Discover available numeric metrics from all data sources
   const availableMetrics = useMemo(
-    () => discoverMetrics(samples, soilChemistry, customLayers),
-    [samples, soilChemistry, customLayers]
+    () => discoverMetrics(samples, soilChemistry, customLayers, sanitizedGisLayers),
+    [samples, soilChemistry, customLayers, sanitizedGisLayers]
   )
 
   // Build chemistry lookup: sample_no -> metric -> value
@@ -552,17 +634,6 @@ export default function TrialMap({
     return pts
   }, [trialCoord, samplePoints, customLayers])
 
-  // Sanitise GIS layer geojson at render time to guard against invalid
-  // geometries persisted in the DB before upload-time validation existed.
-  const sanitizedGisLayers = useMemo(
-    () =>
-      gisLayers
-        .filter((l) => l.geojson && l.geojson.type === 'FeatureCollection')
-        .map((l) => ({ ...l, geojson: sanitizeFeatures(l.geojson) }))
-        .filter((l) => l.geojson.features.length > 0),
-    [gisLayers]
-  )
-
   // Pre-compute point data for each GIS layer (used for heatmap rendering)
   const gisLayerPointData = useMemo(
     () => {
@@ -594,6 +665,26 @@ export default function TrialMap({
   const metricLayerData = useMemo(() => {
     if (!selectedMetric) return null
 
+    // GIS layer metric — extract values from feature properties + centroids
+    if (selectedMetric.source === 'gis' && selectedMetric.layerId) {
+      const layer = sanitizedGisLayers.find(l => l.id === selectedMetric.layerId)
+      if (!layer) return null
+      const colName = selectedMetric.key.split(':')[2] // "gis:layerId:colName"
+      const pts: { lat: number; lng: number; value: number; sample: any }[] = []
+      for (const feature of layer.geojson.features) {
+        const raw = feature.properties?.[colName]
+        if (raw == null || raw === '') continue
+        const n = Number(raw)
+        if (isNaN(n)) continue
+        const centroid = getFeatureCentroid(feature.geometry)
+        if (!centroid) continue
+        pts.push({ lat: centroid[0], lng: centroid[1], value: n, sample: null })
+      }
+      if (pts.length === 0) return null
+      const values = pts.map(p => p.value)
+      return { points: pts, min: Math.min(...values), max: Math.max(...values) }
+    }
+
     // Custom layer metric
     if (selectedMetric.source === 'custom' && selectedMetric.layerId) {
       const layer = customLayers.find(l => l.id === selectedMetric.layerId)
@@ -622,7 +713,7 @@ export default function TrialMap({
     if (points.length === 0) return null
     const values = points.map(p => p.value)
     return { points, min: Math.min(...values), max: Math.max(...values) }
-  }, [selectedMetric, samplePoints, chemBySample, customLayers])
+  }, [selectedMetric, samplePoints, chemBySample, customLayers, sanitizedGisLayers])
 
   // Default center: trial GPS, first sample point, or Australia
   const defaultCenter: [number, number] = trialCoord
@@ -1092,7 +1183,12 @@ export default function TrialMap({
               const useHeatmap = shouldShowHeatmap(layer.id)
               const pointData = gisLayerPointData.get(layer.id)
 
-              if (useHeatmap && pointData && pointData.coords.length > 0) {
+              // Check if a GIS attribute metric is active for this layer
+              const isGisMetricActive = selectedMetric?.source === 'gis' && selectedMetric.layerId === layer.id
+              const gisMetricCol = isGisMetricActive ? selectedMetric!.key.split(':')[2] : null
+
+              // When coloring by attribute, skip heatmap mode so the value colors are visible
+              if (!isGisMetricActive && useHeatmap && pointData && pointData.coords.length > 0) {
                 return (
                   <LayersControl.Overlay checked key={layer.id} name={`${layer.name} (heatmap)`}>
                     <FeatureGroup>
@@ -1103,16 +1199,39 @@ export default function TrialMap({
               }
 
               return (
-                <LayersControl.Overlay checked key={layer.id} name={layer.name}>
+                <LayersControl.Overlay checked key={layer.id} name={isGisMetricActive ? `${layer.name} — ${gisMetricCol}` : layer.name}>
                   <GeoJSON
+                    key={`${layer.id}-${gisMetricCol || 'default'}`}
                     data={layer.geojson}
-                    style={() => ({
-                      color,
-                      weight: layer.style?.weight ?? 2,
-                      fillOpacity: layer.style?.fillOpacity ?? 0.15,
-                      fillColor: color,
-                    })}
+                    style={(feature) => {
+                      if (isGisMetricActive && gisMetricCol && metricLayerData && feature) {
+                        const raw = feature.properties?.[gisMetricCol]
+                        if (raw != null && raw !== '') {
+                          const n = Number(raw)
+                          if (!isNaN(n)) {
+                            const c = metricColor(n, metricLayerData.min, metricLayerData.max)
+                            return { color: c, fillColor: c, fillOpacity: 0.65, weight: 1 }
+                          }
+                        }
+                      }
+                      return {
+                        color,
+                        weight: layer.style?.weight ?? 2,
+                        fillOpacity: layer.style?.fillOpacity ?? 0.15,
+                        fillColor: color,
+                      }
+                    }}
                     pointToLayer={(feature, latlng) => {
+                      if (isGisMetricActive && gisMetricCol && metricLayerData) {
+                        const raw = feature.properties?.[gisMetricCol]
+                        if (raw != null && raw !== '') {
+                          const n = Number(raw)
+                          if (!isNaN(n)) {
+                            const c = metricColor(n, metricLayerData.min, metricLayerData.max)
+                            return L.circleMarker(latlng, { radius: 8, color: c, fillColor: c, fillOpacity: 0.85, weight: 1 })
+                          }
+                        }
+                      }
                       return L.circleMarker(latlng, {
                         radius: 6,
                         color,
@@ -1136,8 +1255,8 @@ export default function TrialMap({
               )
             })}
 
-            {/* Metric overlay (color-coded points) */}
-            {metricLayerData && selectedMetric && (
+            {/* Metric overlay (color-coded points) — skip for GIS metrics since the layer itself is color-coded */}
+            {metricLayerData && selectedMetric && selectedMetric.source !== 'gis' && (
               <LayersControl.Overlay checked name={`${selectedMetric.label.slice(0, 30)} (metric)`}>
                 <FeatureGroup>
                   {metricLayerData.points.map((pt, i) => {
@@ -1234,6 +1353,7 @@ export default function TrialMap({
               const pointData = gisLayerPointData.get(layer.id)
               const isPointLayer = pointData?.isPointLayer && pointData.coords.length > 0
               const isHeatmap = shouldShowHeatmap(layer.id)
+              const gisMetricCount = availableMetrics.filter(m => m.source === 'gis' && m.layerId === layer.id).length
               return (
                 <div
                   key={layer.id}
@@ -1248,6 +1368,7 @@ export default function TrialMap({
                       <p className="text-sm font-medium">{layer.name}</p>
                       <p className="text-xs text-brand-grey-1">
                         {layer.file_type.toUpperCase()} &middot; {layer.feature_count} feature{layer.feature_count !== 1 ? 's' : ''}
+                        {gisMetricCount > 0 && ` \u00b7 ${gisMetricCount} variable${gisMetricCount !== 1 ? 's' : ''}`}
                         {isHeatmap && ' \u00b7 heatmap'}
                       </p>
                     </div>
