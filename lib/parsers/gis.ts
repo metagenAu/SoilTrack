@@ -2,6 +2,12 @@ import type { FeatureCollection, Feature, Geometry } from 'geojson'
 
 export type GISFileType = 'geojson' | 'kml' | 'kmz' | 'shapefile'
 
+/** A single named layer parsed from a GIS file (e.g. one shapefile in a multi-layer ZIP). */
+export interface ParsedGISLayer {
+  name: string
+  geojson: FeatureCollection
+}
+
 /** Geometry types that Leaflet can render */
 const VALID_GEOMETRY_TYPES = new Set([
   'Point',
@@ -130,7 +136,7 @@ async function parseKMZ(file: File): Promise<FeatureCollection> {
   return sanitizeFeatures(kml(dom) as FeatureCollection)
 }
 
-async function parseShapefile(file: File): Promise<FeatureCollection> {
+async function parseShapefileLayers(file: File): Promise<ParsedGISLayer[]> {
   let shp: typeof import('shpjs').default
   try {
     shp = (await import('shpjs')).default
@@ -143,15 +149,33 @@ async function parseShapefile(file: File): Promise<FeatureCollection> {
   const buffer = await file.arrayBuffer()
   const result = await shp(buffer)
 
+  const baseName = file.name.replace(/\.[^.]+$/, '')
+
   // shpjs can return a single FeatureCollection or an array of them (for .zip with multiple layers)
   if (Array.isArray(result)) {
-    // Merge all features into a single FeatureCollection
-    return sanitizeFeatures({
-      type: 'FeatureCollection',
-      features: result.flatMap((fc) => fc.features),
-    })
+    return result
+      .map((fc, idx) => {
+        const sanitized = sanitizeFeatures(fc)
+        // shpjs attaches fileName to each FeatureCollection in a multi-layer ZIP
+        const layerName = fc.fileName || `${baseName} - Layer ${idx + 1}`
+        return { name: layerName, geojson: sanitized }
+      })
+      .filter((layer) => layer.geojson.features.length > 0)
   }
-  return sanitizeFeatures(result as FeatureCollection)
+
+  return [{ name: baseName, geojson: sanitizeFeatures(result as FeatureCollection) }]
+}
+
+async function parseShapefile(file: File): Promise<FeatureCollection> {
+  const layers = await parseShapefileLayers(file)
+  if (layers.length === 0) {
+    return { type: 'FeatureCollection', features: [] }
+  }
+  // Merge all layers for single-layer compat
+  return {
+    type: 'FeatureCollection',
+    features: layers.flatMap((l) => l.geojson.features),
+  }
 }
 
 /**
@@ -171,6 +195,36 @@ export async function parseGISFile(
       return parseKMZ(file)
     case 'shapefile':
       return parseShapefile(file)
+    default:
+      throw new Error(`Unsupported GIS file type: ${fileType}`)
+  }
+}
+
+/**
+ * Parse a GIS file into one or more named layers.
+ *
+ * For zipped shapefiles (e.g. John Deere Ops exports) a single ZIP often
+ * contains multiple separate .shp files — one per operation type (seeding,
+ * harvest, spraying, etc.).  This function returns each as a separate layer
+ * so they can be uploaded and toggled independently on the map.
+ *
+ * For other formats the result is always a single-element array.
+ */
+export async function parseGISFileMultiLayer(
+  file: File,
+  fileType: GISFileType
+): Promise<ParsedGISLayer[]> {
+  const baseName = file.name.replace(/\.[^.]+$/, '')
+
+  switch (fileType) {
+    case 'shapefile':
+      return parseShapefileLayers(file)
+    case 'geojson':
+      return [{ name: baseName, geojson: await parseGeoJSON(file) }]
+    case 'kml':
+      return [{ name: baseName, geojson: await parseKML(file) }]
+    case 'kmz':
+      return [{ name: baseName, geojson: await parseKMZ(file) }]
     default:
       throw new Error(`Unsupported GIS file type: ${fileType}`)
   }
