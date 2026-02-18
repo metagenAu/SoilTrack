@@ -4,7 +4,7 @@ import { useState, useRef, useMemo, useEffect } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, GeoJSON, CircleMarker, LayersControl, FeatureGroup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import type { FeatureCollection } from 'geojson'
-import { Upload, Trash2, Loader2, MapPin, Activity, FileSpreadsheet, Grid3X3 } from 'lucide-react'
+import { Upload, Trash2, Loader2, MapPin, Activity, FileSpreadsheet, Grid3X3, Flame, CircleDot } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { detectGISFileType, parseGISFile, sanitizeFeatures, GIS_ACCEPT } from '@/lib/parsers/gis'
@@ -12,7 +12,11 @@ import { detectGISFileType, parseGISFile, sanitizeFeatures, GIS_ACCEPT } from '@
 const MAX_FILE_SIZE_MB = 50
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024
 
+/** Point count threshold: above this, GIS point layers render as a heatmap */
+const HEATMAP_POINT_THRESHOLD = 500
+
 import 'leaflet/dist/leaflet.css'
+import 'leaflet.heat'
 
 // Fix Leaflet default marker icon issue with bundlers
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -341,6 +345,74 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
   return null
 }
 
+// ---------- GIS point extraction ----------
+
+/**
+ * Extract [lat, lng] coordinate pairs from Point and MultiPoint features
+ * in a FeatureCollection.  Returns them as an array and a boolean indicating
+ * whether the layer is *predominantly* point data (>50% of features).
+ */
+function extractPointCoords(fc: FeatureCollection): { coords: [number, number][]; isPointLayer: boolean } {
+  const coords: [number, number][] = []
+  let pointFeatureCount = 0
+
+  for (const f of fc.features) {
+    const geom = f.geometry
+    if (!geom) continue
+    if (geom.type === 'Point') {
+      const [lng, lat] = geom.coordinates as [number, number]
+      coords.push([lat, lng])
+      pointFeatureCount++
+    } else if (geom.type === 'MultiPoint') {
+      for (const coord of geom.coordinates) {
+        const [lng, lat] = coord as [number, number]
+        coords.push([lat, lng])
+      }
+      pointFeatureCount++
+    }
+  }
+
+  const isPointLayer = fc.features.length > 0 && pointFeatureCount / fc.features.length > 0.5
+  return { coords, isPointLayer }
+}
+
+// ---------- Leaflet.heat wrapper ----------
+
+/** Renders a density heatmap from an array of [lat, lng] pairs using leaflet.heat */
+function HeatmapLayer({ points }: { points: [number, number][] }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (points.length === 0) return
+
+    const heat = L.heatLayer(
+      points.map(([lat, lng]) => [lat, lng] as L.HeatLatLngTuple),
+      {
+        radius: 18,
+        blur: 25,
+        maxZoom: 17,
+        minOpacity: 0.35,
+        gradient: {
+          0.2: '#313695',
+          0.4: '#4575b4',
+          0.5: '#74add1',
+          0.6: '#fee090',
+          0.7: '#f46d43',
+          0.85: '#d73027',
+          1.0: '#a50026',
+        },
+      }
+    )
+    heat.addTo(map)
+
+    return () => {
+      heat.remove()
+    }
+  }, [map, points])
+
+  return null
+}
+
 // ---------- Sub-components ----------
 
 function FitBounds({ points, geoJsonLayers }: { points: [number, number][]; geoJsonLayers: FeatureCollection[] }) {
@@ -418,6 +490,8 @@ export default function TrialMap({
   const [deleting, setDeleting] = useState<string | null>(null)
   const [activeMetric, setActiveMetric] = useState<string | null>(null)
   const [showInterpolation, setShowInterpolation] = useState(false)
+  // Per-layer override: true = force heatmap, false = force points, undefined = auto
+  const [heatmapOverrides, setHeatmapOverrides] = useState<Record<string, boolean>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
   const csvInputRef = useRef<HTMLInputElement>(null)
 
@@ -488,6 +562,28 @@ export default function TrialMap({
         .filter((l) => l.geojson.features.length > 0),
     [gisLayers]
   )
+
+  // Pre-compute point data for each GIS layer (used for heatmap rendering)
+  const gisLayerPointData = useMemo(
+    () => {
+      const map = new Map<string, { coords: [number, number][]; isPointLayer: boolean }>()
+      for (const l of sanitizedGisLayers) {
+        map.set(l.id, extractPointCoords(l.geojson))
+      }
+      return map
+    },
+    [sanitizedGisLayers]
+  )
+
+  /** Determine if a GIS layer should render as heatmap right now */
+  function shouldShowHeatmap(layerId: string): boolean {
+    const override = heatmapOverrides[layerId]
+    if (override !== undefined) return override
+    // Auto: heatmap when it's a point layer above threshold
+    const data = gisLayerPointData.get(layerId)
+    if (!data) return false
+    return data.isPointLayer && data.coords.length >= HEATMAP_POINT_THRESHOLD
+  }
 
   const allGeoJsons = useMemo(
     () => sanitizedGisLayers.map((l) => l.geojson),
@@ -980,9 +1076,22 @@ export default function TrialMap({
               </LayersControl.Overlay>
             )}
 
-            {/* GIS layers */}
+            {/* GIS layers — heatmap for dense point layers, GeoJSON for others */}
             {sanitizedGisLayers.map((layer, idx) => {
               const color = layer.style?.color || LAYER_COLORS[idx % LAYER_COLORS.length]
+              const useHeatmap = shouldShowHeatmap(layer.id)
+              const pointData = gisLayerPointData.get(layer.id)
+
+              if (useHeatmap && pointData && pointData.coords.length > 0) {
+                return (
+                  <LayersControl.Overlay checked key={layer.id} name={`${layer.name} (heatmap)`}>
+                    <FeatureGroup>
+                      <HeatmapLayer points={pointData.coords} />
+                    </FeatureGroup>
+                  </LayersControl.Overlay>
+                )
+              }
+
               return (
                 <LayersControl.Overlay checked key={layer.id} name={layer.name}>
                   <GeoJSON
@@ -993,6 +1102,15 @@ export default function TrialMap({
                       fillOpacity: layer.style?.fillOpacity ?? 0.15,
                       fillColor: color,
                     })}
+                    pointToLayer={(feature, latlng) => {
+                      return L.circleMarker(latlng, {
+                        radius: 6,
+                        color,
+                        fillColor: color,
+                        fillOpacity: 0.7,
+                        weight: 2,
+                      })
+                    }}
                     onEachFeature={(feature, leafletLayer) => {
                       const props = feature.properties
                       if (props && Object.keys(props).length > 0) {
@@ -1103,6 +1221,9 @@ export default function TrialMap({
             {/* GIS layers */}
             {sanitizedGisLayers.map((layer, idx) => {
               const color = layer.style?.color || LAYER_COLORS[idx % LAYER_COLORS.length]
+              const pointData = gisLayerPointData.get(layer.id)
+              const isPointLayer = pointData?.isPointLayer && pointData.coords.length > 0
+              const isHeatmap = shouldShowHeatmap(layer.id)
               return (
                 <div
                   key={layer.id}
@@ -1117,20 +1238,43 @@ export default function TrialMap({
                       <p className="text-sm font-medium">{layer.name}</p>
                       <p className="text-xs text-brand-grey-1">
                         {layer.file_type.toUpperCase()} &middot; {layer.feature_count} feature{layer.feature_count !== 1 ? 's' : ''}
+                        {isHeatmap && ' \u00b7 heatmap'}
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDeleteGIS(layer.id)}
-                    disabled={deleting === layer.id}
-                    className="p-1.5 rounded-md text-brand-grey-1 hover:text-red-500 hover:bg-red-50 transition-colors"
-                  >
-                    {deleting === layer.id ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={14} />
+                  <div className="flex items-center gap-1">
+                    {/* Heatmap / points toggle — shown for point-based GIS layers */}
+                    {isPointLayer && (
+                      <button
+                        onClick={() =>
+                          setHeatmapOverrides((prev) => ({
+                            ...prev,
+                            [layer.id]: !isHeatmap,
+                          }))
+                        }
+                        className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors ${
+                          isHeatmap
+                            ? 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100'
+                            : 'bg-white text-brand-grey-1 border-brand-grey-2 hover:border-brand-black'
+                        }`}
+                        title={isHeatmap ? 'Switch to individual points' : 'Switch to heatmap'}
+                      >
+                        {isHeatmap ? <CircleDot size={12} /> : <Flame size={12} />}
+                        {isHeatmap ? 'Points' : 'Heatmap'}
+                      </button>
                     )}
-                  </button>
+                    <button
+                      onClick={() => handleDeleteGIS(layer.id)}
+                      disabled={deleting === layer.id}
+                      className="p-1.5 rounded-md text-brand-grey-1 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      {deleting === layer.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                    </button>
+                  </div>
                 </div>
               )
             })}
