@@ -84,6 +84,17 @@ interface FieldMapProps {
       status: string
     }
   }>
+  trialApplications?: Array<{
+    id: string
+    trial_id: string
+    name: string
+    trt_number: number | null
+    application_type: string | null
+    product: string | null
+    rate: string | null
+    geojson: FeatureCollection
+    style: Record<string, unknown> | null
+  }>
 }
 
 export default function FieldMap({
@@ -96,6 +107,7 @@ export default function FieldMap({
   trialSamples = [],
   trialGisLayers = [],
   fieldTrials = [],
+  trialApplications = [],
 }: FieldMapProps) {
   const mapRef = useRef<L.Map | null>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -338,6 +350,38 @@ export default function FieldMap({
       gLayer.addTo(map)
     }
 
+    // Render linked trial application zones
+    const APP_ZONE_COLORS = ['#f59e0b', '#d97706', '#b45309', '#92400e', '#78350f', '#ea580c']
+    for (let i = 0; i < trialApplications.length; i++) {
+      const app = trialApplications[i]
+      if (!app.geojson?.features?.length) continue
+      const color = (app.style as any)?.color || APP_ZONE_COLORS[i % APP_ZONE_COLORS.length]
+      const appLayer = L.geoJSON(app.geojson, {
+        style: {
+          color,
+          weight: (app.style as any)?.weight ?? 2.5,
+          fillOpacity: (app.style as any)?.fillOpacity ?? 0.25,
+          fillColor: color,
+          dashArray: '6, 4',
+        },
+        onEachFeature: (feature, layer) => {
+          const parts: string[] = [`<b>${escapeHtml(app.name)}</b>`]
+          if (app.application_type) parts.push(`Type: ${escapeHtml(app.application_type)}`)
+          if (app.product) parts.push(`Product: ${escapeHtml(app.product)}`)
+          if (app.rate) parts.push(`Rate: ${escapeHtml(app.rate)}`)
+          if (app.trt_number != null) parts.push(`Treatment: ${app.trt_number}`)
+          if (feature.properties) {
+            const entries = Object.entries(feature.properties).filter(([, v]) => v != null && v !== '')
+            for (const [k, v] of entries) {
+              parts.push(`${escapeHtml(String(k))}: ${escapeHtml(String(v))}`)
+            }
+          }
+          layer.bindPopup(`<div class="text-xs">${parts.join('<br/>')}</div>`)
+        },
+      })
+      appLayer.addTo(map)
+    }
+
     // Fit bounds
     const allLayers = new L.FeatureGroup()
     boundaryLayerRef.current.eachLayer((l) => allLayers.addLayer(l))
@@ -355,6 +399,11 @@ export default function FieldMap({
     for (const tLayer of trialGisLayers) {
       if (tLayer.geojson?.features?.length) {
         L.geoJSON(tLayer.geojson).eachLayer((l) => allLayers.addLayer(l))
+      }
+    }
+    for (const app of trialApplications) {
+      if (app.geojson?.features?.length) {
+        L.geoJSON(app.geojson).eachLayer((l) => allLayers.addLayer(l))
       }
     }
 
@@ -692,7 +741,7 @@ export default function FieldMap({
       )}
 
       {/* Linked trial data legend */}
-      {(trialSamples.length > 0 || trialGisLayers.length > 0) && (
+      {(trialSamples.length > 0 || trialGisLayers.length > 0 || trialApplications.length > 0) && (
         <div className="mt-3 p-3 rounded-lg border border-brand-grey-2 bg-brand-grey-3/50">
           <p className="text-xs font-semibold text-brand-black mb-2">LINKED TRIAL DATA</p>
           <div className="space-y-1.5">
@@ -730,6 +779,19 @@ export default function FieldMap({
                   <span className="text-brand-black font-medium">{tLayer.name}</span>
                   <span className="text-brand-grey-1">
                     {tLayer.file_type.toUpperCase()} &middot; {tLayer.feature_count} feature{tLayer.feature_count !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              )
+            })}
+            {trialApplications.map((app, idx) => {
+              const APP_ZONE_COLORS = ['#f59e0b', '#d97706', '#b45309', '#92400e', '#78350f', '#ea580c']
+              const color = (app.style as any)?.color || APP_ZONE_COLORS[idx % APP_ZONE_COLORS.length]
+              return (
+                <div key={`app-${app.id}`} className="flex items-center gap-2 text-xs">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  <span className="text-brand-black font-medium">{app.name}</span>
+                  <span className="text-brand-grey-1">
+                    Application{app.application_type ? ` \u00b7 ${app.application_type}` : ''}{app.product ? ` \u00b7 ${app.product}` : ''}
                   </span>
                 </div>
               )

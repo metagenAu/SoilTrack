@@ -15,7 +15,7 @@ async function getTrialData(id: string) {
   const supabase = createServerSupabaseClient()
 
   // Only fetch essential data upfront; heavy tab-specific data is loaded client-side
-  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemCountRes, tissueCountRes, metadataCountRes, photosCountRes, gisCountRes, linkedFieldsRes, allFieldsRes] = await Promise.all([
+  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemCountRes, tissueCountRes, metadataCountRes, photosCountRes, gisCountRes, linkedFieldsRes, allFieldsRes, applicationsRes] = await Promise.all([
     supabase.from('trials').select('*').eq('id', id).single(),
     supabase.from('treatments').select('*').eq('trial_id', id).order('sort_order'),
     supabase.from('soil_health_samples').select('*').eq('trial_id', id).order('sample_no'),
@@ -30,6 +30,7 @@ async function getTrialData(id: string) {
     supabase.from('trial_gis_layers').select('*', { count: 'exact', head: true }).eq('trial_id', id),
     supabase.from('field_trials').select('*, fields(id, name, farm, region, area_ha, boundary)').eq('trial_id', id).order('created_at'),
     supabase.from('fields').select('id, name, farm, region, area_ha').order('name'),
+    supabase.from('trial_applications').select('*').eq('trial_id', id).order('created_at'),
   ])
 
   if (trialRes.error || !trialRes.data) return null
@@ -73,6 +74,7 @@ async function getTrialData(id: string) {
     gisCount: gisCountRes.count || 0,
     linkedFields,
     allFields: allFieldsRes.data || [],
+    applications: applicationsRes.data || [],
   }
 }
 
@@ -86,7 +88,7 @@ export default async function TrialDetailPage({
 
   if (!data) notFound()
 
-  const { trial, treatments, samples, plots, log, dataCoverage, metadataCount, photosCount, gisCount, linkedFields, allFields } = data
+  const { trial, treatments, samples, plots, log, dataCoverage, metadataCount, photosCount, gisCount, linkedFields, allFields, applications } = data
 
   return (
     <div>
@@ -140,6 +142,7 @@ export default async function TrialDetailPage({
         photosCount={photosCount}
         linkedFields={linkedFields}
         allFields={allFields}
+        applications={applications}
         supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
       />
     </div>

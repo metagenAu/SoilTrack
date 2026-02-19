@@ -92,6 +92,17 @@ interface FieldDetailTabsProps {
     feature_count: number
     style: Record<string, unknown> | null
   }>
+  trialApplications?: Array<{
+    id: string
+    trial_id: string
+    name: string
+    trt_number: number | null
+    application_type: string | null
+    product: string | null
+    rate: string | null
+    geojson: import('geojson').FeatureCollection
+    style: Record<string, unknown> | null
+  }>
 }
 
 const tabs = [
@@ -113,6 +124,7 @@ export default function FieldDetailTabs({
   allTrials,
   trialSamples = [],
   trialGisLayers = [],
+  trialApplications = [],
 }: FieldDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('map')
 
@@ -164,6 +176,7 @@ export default function FieldDetailTabs({
             trialSamples={trialSamples}
             trialGisLayers={trialGisLayers}
             fieldTrials={fieldTrials}
+            trialApplications={trialApplications}
           />
           <FieldAnnotationsPanel
             fieldId={field.id}

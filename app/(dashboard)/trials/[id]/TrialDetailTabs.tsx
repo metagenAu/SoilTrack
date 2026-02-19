@@ -12,6 +12,8 @@ import TrialMap from '@/components/trials/TrialMapWrapper'
 import StatCard from '@/components/ui/StatCard'
 import EditableField from '@/components/trials/EditableField'
 import TrialFieldsPanel from '@/components/trials/TrialFieldsPanel'
+import TrialApplicationsPanel from '@/components/trials/TrialApplicationsPanel'
+import type { TrialApplication } from '@/components/trials/TrialApplicationsPanel'
 import WeatherTab from '@/components/weather/WeatherTab'
 import { parseGPS } from '@/lib/weather'
 import { createClient } from '@/lib/supabase/client'
@@ -27,10 +29,11 @@ interface TrialDetailTabsProps {
   photosCount: number
   linkedFields?: any[]
   allFields?: any[]
+  applications?: any[]
   supabaseUrl: string
 }
 
-const tabs = ['Summary', 'Treatments', 'Soil Health', 'Plot Data', 'Assay Results', 'Photos', 'Map', 'Weather', 'Fields', 'Management']
+const tabs = ['Summary', 'Treatments', 'Applications', 'Soil Health', 'Plot Data', 'Assay Results', 'Photos', 'Map', 'Weather', 'Fields', 'Management']
 
 // Hook to lazily fetch data from Supabase when a tab is first opened
 function useLazyTabData<T>(trialId: string, activeTab: string, triggerTab: string, fetcher: (supabase: any, trialId: string) => Promise<T>, initial?: T) {
@@ -71,9 +74,11 @@ export default function TrialDetailTabs({
   photosCount,
   linkedFields = [],
   allFields = [],
+  applications: initialApplications = [],
   supabaseUrl,
 }: TrialDetailTabsProps) {
   const [activeTab, setActiveTab] = useState('Summary')
+  const [applications, setApplications] = useState<TrialApplication[]>(initialApplications)
   const parsedGps = parseGPS(trial.gps)
 
   // Keep a stable ref to linkedFields so fetchMapData doesn't get a new identity on re-render
@@ -207,6 +212,17 @@ export default function TrialDetailTabs({
         </div>
       )}
 
+      {activeTab === 'Applications' && (
+        <div className="card">
+          <TrialApplicationsPanel
+            trialId={trial.id}
+            applications={applications}
+            treatments={treatments}
+            onApplicationsChange={setApplications}
+          />
+        </div>
+      )}
+
       {activeTab === 'Soil Health' && (
         <div className="card">
           <SoilHealthTable samples={samples} />
@@ -258,6 +274,7 @@ export default function TrialDetailTabs({
               soilChemistry={mapData!.soilChemistry}
               linkedFields={linkedFields}
               fieldGisLayers={mapData!.fieldGisLayers}
+              applications={applications}
               supabaseUrl={supabaseUrl}
             />
           )}
