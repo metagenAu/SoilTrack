@@ -12,20 +12,19 @@ async function getLandingStats() {
     return { activeTrials: 0, totalSamples: 0, crops: 0, regions: 0, products: 0 }
   }
 
-  const [trialsRes, samplesRes, treatmentsRes, clientsRes] = await Promise.all([
+  const [trialsRes, samplesCountRes, treatmentsRes, clientsRes] = await Promise.all([
     supabase.from('trials').select('status, crop'),
-    supabase.from('soil_health_samples').select('id'),
+    supabase.from('soil_health_samples').select('*', { count: 'exact', head: true }),
     supabase.from('treatments').select('product'),
     supabase.from('clients').select('region'),
   ])
 
   const trials = trialsRes.data || []
-  const samples = samplesRes.data || []
   const treatments = treatmentsRes.data || []
   const clients = clientsRes.data || []
 
   const activeTrials = trials.filter((t) => t.status === 'active').length
-  const totalSamples = samples.length
+  const totalSamples = samplesCountRes.count || 0
   const crops = new Set(trials.map((t) => t.crop).filter(Boolean)).size
   const regions = new Set(clients.map((c) => c.region).filter(Boolean)).size
   const products = new Set(
@@ -262,10 +261,11 @@ export default async function LandingPage() {
       <div className="landing-page">
         <div className="landing-bg">
           <Image
-            src="/landing-bg.png"
+            src="/landing-bg.webp"
             alt=""
             fill
             priority
+            sizes="100vw"
             style={{ objectFit: 'cover', objectPosition: 'center' }}
           />
         </div>

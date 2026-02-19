@@ -2,15 +2,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { getUserRole, canUpload } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import PageHeader from '@/components/layout/PageHeader'
-import StatusPill from '@/components/ui/StatusPill'
 import TrialStatusToggle from '@/components/trials/TrialStatusToggle'
 import DataBadge from '@/components/ui/DataBadge'
-import StatCard from '@/components/ui/StatCard'
-import TreatmentsTable from '@/components/trials/TreatmentsTable'
-import SoilHealthTable from '@/components/trials/SoilHealthTable'
-import PlotDataTable from '@/components/trials/PlotDataTable'
-import ManagementLog from '@/components/trials/ManagementLog'
-import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import { Upload } from 'lucide-react'
@@ -21,19 +14,20 @@ export const dynamic = 'force-dynamic'
 async function getTrialData(id: string) {
   const supabase = createServerSupabaseClient()
 
-  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemRes, tissueRes, metadataRes, photosRes, gisRes, customLayersRes, linkedFieldsRes, allFieldsRes] = await Promise.all([
+  // Only fetch essential data upfront; heavy tab-specific data is loaded client-side
+  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemCountRes, tissueCountRes, metadataCountRes, photosCountRes, gisCountRes, linkedFieldsRes, allFieldsRes] = await Promise.all([
     supabase.from('trials').select('*').eq('id', id).single(),
     supabase.from('treatments').select('*').eq('trial_id', id).order('sort_order'),
     supabase.from('soil_health_samples').select('*').eq('trial_id', id).order('sample_no'),
     supabase.from('plot_data').select('*').eq('trial_id', id).order('plot'),
     supabase.from('management_log').select('*').eq('trial_id', id).order('date'),
     supabase.from('trial_data_files').select('*').eq('trial_id', id),
-    supabase.from('soil_chemistry').select('*').eq('trial_id', id),
-    supabase.from('tissue_chemistry').select('*').eq('trial_id', id),
-    supabase.from('sample_metadata').select('*').eq('trial_id', id).order('sample_no'),
-    supabase.from('trial_photos').select('*').eq('trial_id', id).order('created_at', { ascending: false }),
-    supabase.from('trial_gis_layers').select('*').eq('trial_id', id).order('created_at'),
-    supabase.from('custom_map_layers').select('*').eq('trial_id', id).order('created_at'),
+    // Use count-only queries for data we only need to count for badges
+    supabase.from('soil_chemistry').select('*', { count: 'exact', head: true }).eq('trial_id', id),
+    supabase.from('tissue_chemistry').select('*', { count: 'exact', head: true }).eq('trial_id', id),
+    supabase.from('sample_metadata').select('*', { count: 'exact', head: true }).eq('trial_id', id),
+    supabase.from('trial_photos').select('*', { count: 'exact', head: true }).eq('trial_id', id),
+    supabase.from('trial_gis_layers').select('*', { count: 'exact', head: true }).eq('trial_id', id),
     supabase.from('field_trials').select('*, fields(id, name, farm, region, area_ha, boundary)').eq('trial_id', id).order('created_at'),
     supabase.from('fields').select('id, name, farm, region, area_ha').order('name'),
   ])
@@ -63,18 +57,7 @@ async function getTrialData(id: string) {
     treatment_application: treatmentMap.get(p.trt_number)?.application || null,
   }))
 
-  // Extract field GIS layers for linked fields (for map overlay)
   const linkedFields = linkedFieldsRes.data || []
-  const fieldIds = linkedFields.map((lf: any) => lf.field_id).filter(Boolean)
-  let fieldGisLayers: any[] = []
-  if (fieldIds.length > 0) {
-    const { data: fGis } = await supabase
-      .from('field_gis_layers')
-      .select('*')
-      .in('field_id', fieldIds)
-      .order('created_at')
-    fieldGisLayers = fGis || []
-  }
 
   return {
     trial: trialRes.data,
@@ -83,16 +66,13 @@ async function getTrialData(id: string) {
     plots,
     log: logRes.data || [],
     dataCoverage,
-    chemistryCount: (chemRes.data || []).length,
-    soilChemistry: chemRes.data || [],
-    tissueCount: (tissueRes.data || []).length,
-    metadata: metadataRes.data || [],
-    photos: photosRes.data || [],
-    gisLayers: gisRes.data || [],
-    customLayers: customLayersRes.data || [],
+    chemistryCount: chemCountRes.count || 0,
+    tissueCount: tissueCountRes.count || 0,
+    metadataCount: metadataCountRes.count || 0,
+    photosCount: photosCountRes.count || 0,
+    gisCount: gisCountRes.count || 0,
     linkedFields,
     allFields: allFieldsRes.data || [],
-    fieldGisLayers,
   }
 }
 
@@ -106,7 +86,7 @@ export default async function TrialDetailPage({
 
   if (!data) notFound()
 
-  const { trial, treatments, samples, plots, log, dataCoverage, soilChemistry, metadata, photos, gisLayers, customLayers, linkedFields, allFields, fieldGisLayers } = data
+  const { trial, treatments, samples, plots, log, dataCoverage, metadataCount, photosCount, gisCount, linkedFields, allFields } = data
 
   return (
     <div>
@@ -143,8 +123,8 @@ export default async function TrialDetailPage({
           <DataBadge label="Plot Data" hasData={dataCoverage.plotData} />
           <DataBadge label="Tissue" hasData={dataCoverage.tissueChemistry} />
           <DataBadge label="Assay Results" hasData={dataCoverage.sampleMetadata} />
-          <DataBadge label="Photos" hasData={dataCoverage.photo || photos.length > 0} />
-          <DataBadge label="GIS" hasData={dataCoverage.gis || gisLayers.length > 0} />
+          <DataBadge label="Photos" hasData={dataCoverage.photo || photosCount > 0} />
+          <DataBadge label="GIS" hasData={dataCoverage.gis || gisCount > 0} />
         </div>
       </div>
 
@@ -156,14 +136,10 @@ export default async function TrialDetailPage({
         plots={plots}
         log={log}
         dataCoverage={dataCoverage}
-        soilChemistry={soilChemistry}
-        metadata={metadata}
-        photos={photos}
-        gisLayers={gisLayers}
-        customLayers={customLayers}
+        metadataCount={metadataCount}
+        photosCount={photosCount}
         linkedFields={linkedFields}
         allFields={allFields}
-        fieldGisLayers={fieldGisLayers}
         supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
       />
     </div>
