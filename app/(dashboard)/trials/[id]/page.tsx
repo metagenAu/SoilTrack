@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic'
 async function getTrialData(id: string) {
   const supabase = createServerSupabaseClient()
 
-  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemRes, tissueRes, metadataRes, photosRes, gisRes, customLayersRes] = await Promise.all([
+  const [trialRes, treatmentsRes, samplesRes, plotsRes, logRes, dataFilesRes, chemRes, tissueRes, metadataRes, photosRes, gisRes, customLayersRes, linkedFieldsRes, allFieldsRes] = await Promise.all([
     supabase.from('trials').select('*').eq('id', id).single(),
     supabase.from('treatments').select('*').eq('trial_id', id).order('sort_order'),
     supabase.from('soil_health_samples').select('*').eq('trial_id', id).order('sample_no'),
@@ -34,6 +34,8 @@ async function getTrialData(id: string) {
     supabase.from('trial_photos').select('*').eq('trial_id', id).order('created_at', { ascending: false }),
     supabase.from('trial_gis_layers').select('*').eq('trial_id', id).order('created_at'),
     supabase.from('custom_map_layers').select('*').eq('trial_id', id).order('created_at'),
+    supabase.from('field_trials').select('*, fields(id, name, farm, region, area_ha, boundary)').eq('trial_id', id).order('created_at'),
+    supabase.from('fields').select('id, name, farm, region, area_ha, boundary').order('name'),
   ])
 
   if (trialRes.error || !trialRes.data) return null
@@ -61,6 +63,19 @@ async function getTrialData(id: string) {
     treatment_application: treatmentMap.get(p.trt_number)?.application || null,
   }))
 
+  // Extract field GIS layers for linked fields (for map overlay)
+  const linkedFields = linkedFieldsRes.data || []
+  const fieldIds = linkedFields.map((lf: any) => lf.field_id).filter(Boolean)
+  let fieldGisLayers: any[] = []
+  if (fieldIds.length > 0) {
+    const { data: fGis } = await supabase
+      .from('field_gis_layers')
+      .select('*')
+      .in('field_id', fieldIds)
+      .order('created_at')
+    fieldGisLayers = fGis || []
+  }
+
   return {
     trial: trialRes.data,
     treatments,
@@ -75,6 +90,9 @@ async function getTrialData(id: string) {
     photos: photosRes.data || [],
     gisLayers: gisRes.data || [],
     customLayers: customLayersRes.data || [],
+    linkedFields,
+    allFields: allFieldsRes.data || [],
+    fieldGisLayers,
   }
 }
 
@@ -88,7 +106,7 @@ export default async function TrialDetailPage({
 
   if (!data) notFound()
 
-  const { trial, treatments, samples, plots, log, dataCoverage, soilChemistry, metadata, photos, gisLayers, customLayers } = data
+  const { trial, treatments, samples, plots, log, dataCoverage, soilChemistry, metadata, photos, gisLayers, customLayers, linkedFields, allFields, fieldGisLayers } = data
 
   return (
     <div>
@@ -143,6 +161,9 @@ export default async function TrialDetailPage({
         photos={photos}
         gisLayers={gisLayers}
         customLayers={customLayers}
+        linkedFields={linkedFields}
+        allFields={allFields}
+        fieldGisLayers={fieldGisLayers}
         supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
       />
     </div>

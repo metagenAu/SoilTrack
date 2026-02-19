@@ -58,6 +58,32 @@ interface FieldMapProps {
     name: string
     points: Array<{ lat: number; lng: number; label: string }>
   }>
+  trialSamples?: Array<{
+    sample_no: string
+    latitude: number
+    longitude: number
+    property: string | null
+    block: string | null
+    trial_id: string
+  }>
+  trialGisLayers?: Array<{
+    id: string
+    trial_id: string
+    name: string
+    file_type: string
+    geojson: FeatureCollection
+    feature_count: number
+    style: Record<string, unknown> | null
+  }>
+  fieldTrials?: Array<{
+    trial_id: string
+    trials: {
+      id: string
+      name: string
+      crop: string | null
+      status: string
+    }
+  }>
 }
 
 export default function FieldMap({
@@ -67,6 +93,9 @@ export default function FieldMap({
   annotations,
   gisLayers,
   samplingPlans,
+  trialSamples = [],
+  trialGisLayers = [],
+  fieldTrials = [],
 }: FieldMapProps) {
   const mapRef = useRef<L.Map | null>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -246,6 +275,69 @@ export default function FieldMap({
       }
     }
 
+    // Build a trial name lookup for popups
+    const trialNameMap = new Map<string, string>()
+    for (const ft of fieldTrials) {
+      if (ft.trials) {
+        trialNameMap.set(ft.trial_id, ft.trials.name)
+      }
+    }
+
+    // Render linked trial sample points
+    const TRIAL_SAMPLE_COLORS = ['#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16']
+    const trialIds = [...new Set(trialSamples.map(s => s.trial_id))]
+
+    for (const s of trialSamples) {
+      const trialIdx = trialIds.indexOf(s.trial_id)
+      const color = TRIAL_SAMPLE_COLORS[trialIdx % TRIAL_SAMPLE_COLORS.length]
+      const trialName = trialNameMap.get(s.trial_id) || s.trial_id
+
+      L.circleMarker([s.latitude, s.longitude], {
+        radius: 5,
+        color,
+        fillColor: color,
+        fillOpacity: 0.8,
+        weight: 1,
+      })
+        .bindPopup(
+          `<div class="text-sm">` +
+          `<p class="font-semibold">Sample ${escapeHtml(s.sample_no)}</p>` +
+          `<p class="text-gray-500">${escapeHtml(trialName)}</p>` +
+          (s.property ? `<p class="text-gray-500">${escapeHtml(s.property)}</p>` : '') +
+          (s.block ? `<p class="text-gray-500">Block: ${escapeHtml(s.block)}</p>` : '') +
+          `<p class="font-mono text-xs">${s.latitude}, ${s.longitude}</p>` +
+          `</div>`
+        )
+        .addTo(map)
+    }
+
+    // Render linked trial GIS layers
+    const TRIAL_GIS_COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4']
+    for (let i = 0; i < trialGisLayers.length; i++) {
+      const tLayer = trialGisLayers[i]
+      if (!tLayer.geojson?.features?.length) continue
+      const color = (tLayer.style as any)?.color || TRIAL_GIS_COLORS[i % TRIAL_GIS_COLORS.length]
+      const gLayer = L.geoJSON(tLayer.geojson, {
+        style: {
+          color,
+          weight: (tLayer.style as any)?.weight ?? 2,
+          fillOpacity: (tLayer.style as any)?.fillOpacity ?? 0.15,
+          fillColor: color,
+          dashArray: '5, 3',
+        },
+        onEachFeature: (feature, layer) => {
+          if (feature.properties) {
+            const entries = Object.entries(feature.properties).filter(([, v]) => v != null)
+            if (entries.length > 0) {
+              const html = entries.map(([k, v]) => `<b>${escapeHtml(String(k))}:</b> ${escapeHtml(String(v))}`).join('<br/>')
+              layer.bindPopup(html)
+            }
+          }
+        },
+      })
+      gLayer.addTo(map)
+    }
+
     // Fit bounds
     const allLayers = new L.FeatureGroup()
     boundaryLayerRef.current.eachLayer((l) => allLayers.addLayer(l))
@@ -255,6 +347,14 @@ export default function FieldMap({
     for (const plan of samplingPlans) {
       for (const pt of plan.points) {
         L.marker([pt.lat, pt.lng]).addTo(allLayers)
+      }
+    }
+    for (const s of trialSamples) {
+      L.marker([s.latitude, s.longitude]).addTo(allLayers)
+    }
+    for (const tLayer of trialGisLayers) {
+      if (tLayer.geojson?.features?.length) {
+        L.geoJSON(tLayer.geojson).eachLayer((l) => allLayers.addLayer(l))
       }
     }
 
@@ -589,6 +689,53 @@ export default function FieldMap({
         <p className="text-xs text-brand-grey-1 mt-2">
           Drag the green points to adjust the boundary. Click &ldquo;Save Changes&rdquo; to persist your edits.
         </p>
+      )}
+
+      {/* Linked trial data legend */}
+      {(trialSamples.length > 0 || trialGisLayers.length > 0) && (
+        <div className="mt-3 p-3 rounded-lg border border-brand-grey-2 bg-brand-grey-3/50">
+          <p className="text-xs font-semibold text-brand-black mb-2">LINKED TRIAL DATA</p>
+          <div className="space-y-1.5">
+            {(() => {
+              const TRIAL_SAMPLE_COLORS = ['#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16']
+              const trialIds = [...new Set(trialSamples.map(s => s.trial_id))]
+              const trialNameMap = new Map<string, string>()
+              for (const ft of fieldTrials) {
+                if (ft.trials) {
+                  trialNameMap.set(ft.trial_id, ft.trials.name)
+                }
+              }
+              return trialIds.map((tid, idx) => {
+                const count = trialSamples.filter(s => s.trial_id === tid).length
+                const color = TRIAL_SAMPLE_COLORS[idx % TRIAL_SAMPLE_COLORS.length]
+                const name = trialNameMap.get(tid) || tid
+                return (
+                  <div key={tid} className="flex items-center gap-2 text-xs">
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <span className="text-brand-black font-medium">{name}</span>
+                    <span className="text-brand-grey-1">{count} sample{count !== 1 ? 's' : ''}</span>
+                    <a href={`/trials/${encodeURIComponent(tid)}`} className="text-meta-blue hover:underline ml-auto">
+                      View trial
+                    </a>
+                  </div>
+                )
+              })
+            })()}
+            {trialGisLayers.map((tLayer, idx) => {
+              const TRIAL_GIS_COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4']
+              const color = (tLayer.style as any)?.color || TRIAL_GIS_COLORS[idx % TRIAL_GIS_COLORS.length]
+              return (
+                <div key={tLayer.id} className="flex items-center gap-2 text-xs">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  <span className="text-brand-black font-medium">{tLayer.name}</span>
+                  <span className="text-brand-grey-1">
+                    {tLayer.file_type.toUpperCase()} &middot; {tLayer.feature_count} feature{tLayer.feature_count !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       )}
     </div>
   )
