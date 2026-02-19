@@ -30,7 +30,9 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query.order('sample_no')
   if (error) return safeErrorResponse(error, 'GET /api/metadata')
 
-  return NextResponse.json({ data })
+  return NextResponse.json({ data }, {
+    headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=60' },
+  })
 }
 
 /**
