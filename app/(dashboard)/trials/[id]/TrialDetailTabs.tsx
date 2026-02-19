@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { cn, formatDate } from '@/lib/utils'
 import TreatmentsTable from '@/components/trials/TreatmentsTable'
 import SoilHealthTable from '@/components/trials/SoilHealthTable'
@@ -14,6 +14,7 @@ import EditableField from '@/components/trials/EditableField'
 import TrialFieldsPanel from '@/components/trials/TrialFieldsPanel'
 import WeatherTab from '@/components/weather/WeatherTab'
 import { parseGPS } from '@/lib/weather'
+import { createClient } from '@/lib/supabase/client'
 
 interface TrialDetailTabsProps {
   trial: any
@@ -22,18 +23,42 @@ interface TrialDetailTabsProps {
   plots: any[]
   log: any[]
   dataCoverage: Record<string, boolean>
-  soilChemistry?: any[]
-  metadata: any[]
-  photos: any[]
-  gisLayers: any[]
-  customLayers?: any[]
+  metadataCount: number
+  photosCount: number
   linkedFields?: any[]
   allFields?: any[]
-  fieldGisLayers?: any[]
   supabaseUrl: string
 }
 
 const tabs = ['Summary', 'Treatments', 'Soil Health', 'Plot Data', 'Assay Results', 'Photos', 'Map', 'Weather', 'Fields', 'Management']
+
+// Hook to lazily fetch data from Supabase when a tab is first opened
+function useLazyTabData<T>(trialId: string, activeTab: string, triggerTab: string, fetcher: (supabase: any, trialId: string) => Promise<T>, initial?: T) {
+  const [data, setData] = useState<T | undefined>(initial)
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (activeTab !== triggerTab || loaded) return
+    setLoading(true)
+    setError(null)
+    const supabase = createClient()
+    fetcher(supabase, trialId)
+      .then((result) => {
+        setData(result)
+        setLoaded(true)
+      })
+      .catch((err) => {
+        setError(err?.message || 'Failed to load data')
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [activeTab, triggerTab, trialId, loaded, fetcher])
+
+  return { data, loading, error }
+}
 
 export default function TrialDetailTabs({
   trial,
@@ -42,18 +67,52 @@ export default function TrialDetailTabs({
   plots,
   log,
   dataCoverage,
-  soilChemistry = [],
-  metadata,
-  photos,
-  gisLayers,
-  customLayers = [],
+  metadataCount,
+  photosCount,
   linkedFields = [],
   allFields = [],
-  fieldGisLayers = [],
   supabaseUrl,
 }: TrialDetailTabsProps) {
   const [activeTab, setActiveTab] = useState('Summary')
   const parsedGps = parseGPS(trial.gps)
+
+  // Keep a stable ref to linkedFields so fetchMapData doesn't get a new identity on re-render
+  const linkedFieldsRef = useRef(linkedFields)
+  linkedFieldsRef.current = linkedFields
+
+  // Lazy-load heavy tab data only when the user clicks the tab
+  const fetchMetadata = useCallback(async (supabase: any, trialId: string) => {
+    const { data } = await supabase.from('sample_metadata').select('*').eq('trial_id', trialId).order('sample_no')
+    return data || []
+  }, [])
+
+  const fetchPhotos = useCallback(async (supabase: any, trialId: string) => {
+    const { data } = await supabase.from('trial_photos').select('*').eq('trial_id', trialId).order('created_at', { ascending: false })
+    return data || []
+  }, [])
+
+  const fetchMapData = useCallback(async (supabase: any, trialId: string) => {
+    const fieldIds = linkedFieldsRef.current.map((lf: any) => lf.field_id).filter(Boolean)
+    const queries: Promise<any>[] = [
+      supabase.from('soil_chemistry').select('*').eq('trial_id', trialId),
+      supabase.from('trial_gis_layers').select('*').eq('trial_id', trialId).order('created_at'),
+      supabase.from('custom_map_layers').select('*').eq('trial_id', trialId).order('created_at'),
+    ]
+    if (fieldIds.length > 0) {
+      queries.push(supabase.from('field_gis_layers').select('*').in('field_id', fieldIds).order('created_at'))
+    }
+    const results = await Promise.all(queries)
+    return {
+      soilChemistry: results[0].data || [],
+      gisLayers: results[1].data || [],
+      customLayers: results[2].data || [],
+      fieldGisLayers: fieldIds.length > 0 ? (results[3].data || []) : [],
+    }
+  }, [])
+
+  const { data: metadata, loading: metadataLoading, error: metadataError } = useLazyTabData(trial.id, activeTab, 'Assay Results', fetchMetadata, [])
+  const { data: photos, loading: photosLoading, error: photosError } = useLazyTabData(trial.id, activeTab, 'Photos', fetchPhotos, [])
+  const { data: mapData, loading: mapLoading, error: mapError } = useLazyTabData(trial.id, activeTab, 'Map', fetchMapData)
 
   return (
     <div>
@@ -134,8 +193,8 @@ export default function TrialDetailTabs({
               <StatCard label="SOIL SAMPLES" value={samples.length} borderColor="#B9BCBF" />
               <StatCard label="TREATMENTS" value={treatments.length} borderColor="#DCDDDF" />
               <StatCard label="PLOT RECORDS" value={plots.length} borderColor="#B9BCBF" />
-              <StatCard label="ASSAY RESULTS" value={metadata.length} borderColor="#DCDDDF" />
-              <StatCard label="PHOTOS" value={photos.length} borderColor="#B9BCBF" />
+              <StatCard label="ASSAY RESULTS" value={metadataCount} borderColor="#DCDDDF" />
+              <StatCard label="PHOTOS" value={photosCount} borderColor="#B9BCBF" />
               <StatCard label="LOG ENTRIES" value={log.length} borderColor="#DCDDDF" />
             </div>
           </div>
@@ -162,28 +221,46 @@ export default function TrialDetailTabs({
 
       {activeTab === 'Assay Results' && (
         <div className="card">
-          <MetadataTable metadata={metadata} />
+          {metadataLoading ? (
+            <p className="text-sm text-brand-grey-1 py-8 text-center">Loading assay results…</p>
+          ) : metadataError ? (
+            <p className="text-sm text-red-600 py-8 text-center">Failed to load assay results. Please refresh the page.</p>
+          ) : (
+            <MetadataTable metadata={metadata || []} />
+          )}
         </div>
       )}
 
       {activeTab === 'Photos' && (
         <div className="card">
-          <PhotosTab photos={photos} trialId={trial.id} supabaseUrl={supabaseUrl} />
+          {photosLoading ? (
+            <p className="text-sm text-brand-grey-1 py-8 text-center">Loading photos…</p>
+          ) : photosError ? (
+            <p className="text-sm text-red-600 py-8 text-center">Failed to load photos. Please refresh the page.</p>
+          ) : (
+            <PhotosTab photos={photos || []} trialId={trial.id} supabaseUrl={supabaseUrl} />
+          )}
         </div>
       )}
 
       {activeTab === 'Map' && (
         <div className="card">
-          <TrialMap
-            trial={trial}
-            samples={samples}
-            gisLayers={gisLayers}
-            customLayers={customLayers}
-            soilChemistry={soilChemistry}
-            linkedFields={linkedFields}
-            fieldGisLayers={fieldGisLayers}
-            supabaseUrl={supabaseUrl}
-          />
+          {mapLoading || (!mapData && !mapError) ? (
+            <p className="text-sm text-brand-grey-1 py-8 text-center">Loading map data…</p>
+          ) : mapError ? (
+            <p className="text-sm text-red-600 py-8 text-center">Failed to load map data. Please refresh the page.</p>
+          ) : (
+            <TrialMap
+              trial={trial}
+              samples={samples}
+              gisLayers={mapData!.gisLayers}
+              customLayers={mapData!.customLayers}
+              soilChemistry={mapData!.soilChemistry}
+              linkedFields={linkedFields}
+              fieldGisLayers={mapData!.fieldGisLayers}
+              supabaseUrl={supabaseUrl}
+            />
+          )}
         </div>
       )}
 

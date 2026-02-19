@@ -205,5 +205,7 @@ export async function GET(request: NextRequest) {
 
   metrics.sort((a, b) => a.metric.localeCompare(b.metric))
 
-  return NextResponse.json({ metrics })
+  return NextResponse.json({ metrics }, {
+    headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=60' },
+  })
 }

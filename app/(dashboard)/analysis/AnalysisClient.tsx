@@ -4,8 +4,14 @@ import { useState } from 'react'
 import { Loader2, BarChart3, BoxSelect } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
-import BoxPlotChart from '@/components/analysis/BoxPlotChart'
-import BarChartWithSE from '@/components/analysis/BarChartWithSE'
+import dynamic from 'next/dynamic'
+
+const BoxPlotChart = dynamic(() => import('@/components/analysis/BoxPlotChart'), {
+  loading: () => <div className="h-64 flex items-center justify-center text-sm text-brand-grey-1">Loading chart…</div>,
+})
+const BarChartWithSE = dynamic(() => import('@/components/analysis/BarChartWithSE'), {
+  loading: () => <div className="h-64 flex items-center justify-center text-sm text-brand-grey-1">Loading chart…</div>,
+})
 
 const DATA_SOURCES = [
   { value: 'sampleMetadata', label: 'Assay Results' },

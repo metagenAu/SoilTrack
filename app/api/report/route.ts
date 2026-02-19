@@ -49,5 +49,7 @@ export async function GET(request: NextRequest) {
     treatments,
     samples: samplesRes.data || [],
     yieldSummary,
+  }, {
+    headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=60' },
   })
 }
