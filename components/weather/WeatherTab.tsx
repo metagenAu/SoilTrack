@@ -8,7 +8,6 @@ import {
   DAILY_GROUPS,
   HOURLY_GROUPS,
   type WeatherResponse,
-  type WeatherVariable,
 } from '@/lib/weather'
 import WeatherChart from './WeatherChart'
 import WeatherTable from './WeatherTable'
@@ -83,7 +82,7 @@ export default function WeatherTab({
   }, [])
 
   async function fetchWeather() {
-    if (!latitude || !longitude) return
+    if (latitude == null || longitude == null) return
     setLoading(true)
     setError(null)
 

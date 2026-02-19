@@ -39,7 +39,7 @@ export default function WeatherTable({ data, variables, frequency }: WeatherTabl
     a.href = url
     a.download = `weather_data_${data[0]?.time ?? 'export'}_${data[data.length - 1]?.time ?? ''}.csv`
     a.click()
-    URL.revokeObjectURL(url)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   return (
