@@ -18,6 +18,16 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
+// Escape HTML to prevent XSS via Leaflet tooltips (which use innerHTML)
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // Custom icon for draggable vertex markers
 const vertexIcon = L.divIcon({
   className: 'field-vertex-marker',
@@ -196,7 +206,7 @@ export default function FieldMap({
         style: ann.style as L.PathOptions || { color: '#ef4444', weight: 2, fillOpacity: 0.2 },
         onEachFeature: (_feature, layer) => {
           if (ann.label) {
-            layer.bindTooltip(ann.label, { permanent: true, direction: 'center', className: 'field-annotation-label' })
+            layer.bindTooltip(escapeHtml(ann.label), { permanent: true, direction: 'center', className: 'field-annotation-label' })
           }
         },
       })
@@ -212,7 +222,7 @@ export default function FieldMap({
           if (feature.properties) {
             const entries = Object.entries(feature.properties).filter(([, v]) => v != null)
             if (entries.length > 0) {
-              const html = entries.map(([k, v]) => `<b>${k}:</b> ${v}`).join('<br/>')
+              const html = entries.map(([k, v]) => `<b>${escapeHtml(String(k))}:</b> ${escapeHtml(String(v))}`).join('<br/>')
               layer.bindPopup(html)
             }
           }
@@ -231,7 +241,7 @@ export default function FieldMap({
           fillOpacity: 0.8,
           weight: 2,
         })
-          .bindTooltip(pt.label, { permanent: false, direction: 'top' })
+          .bindTooltip(escapeHtml(pt.label), { permanent: false, direction: 'top' })
           .addTo(map)
       }
     }

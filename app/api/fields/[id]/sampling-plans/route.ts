@@ -34,23 +34,68 @@ export async function POST(
   const supabase = createServerSupabaseClient()
   const body = await request.json()
 
-  const { name, strategy, num_points, points } = body
+  const { name, strategy, points } = body
 
-  if (!name || !strategy || !points) {
+  if (!name || !strategy || !points || !Array.isArray(points)) {
     return NextResponse.json(
-      { error: 'name, strategy, and points are required' },
+      { error: 'name, strategy, and points array are required' },
       { status: 400 }
     )
+  }
+
+  if (typeof name !== 'string' || name.trim().length === 0 || name.trim().length > 200) {
+    return NextResponse.json(
+      { error: 'name must be a non-empty string (max 200 chars)' },
+      { status: 400 }
+    )
+  }
+
+  const validStrategies = ['random', 'grid', 'stratified']
+  if (!validStrategies.includes(strategy)) {
+    return NextResponse.json(
+      { error: `strategy must be one of: ${validStrategies.join(', ')}` },
+      { status: 400 }
+    )
+  }
+
+  if (points.length > 500) {
+    return NextResponse.json(
+      { error: 'Maximum 500 points allowed' },
+      { status: 400 }
+    )
+  }
+
+  // Validate and sanitize each point
+  const sanitizedPoints = []
+  for (const pt of points) {
+    if (
+      typeof pt !== 'object' || pt === null ||
+      typeof pt.lat !== 'number' || typeof pt.lng !== 'number' ||
+      typeof pt.label !== 'string' ||
+      !isFinite(pt.lat) || !isFinite(pt.lng) ||
+      pt.lat < -90 || pt.lat > 90 ||
+      pt.lng < -180 || pt.lng > 180
+    ) {
+      return NextResponse.json(
+        { error: 'Each point must have valid numeric lat (-90..90), lng (-180..180), and string label' },
+        { status: 400 }
+      )
+    }
+    sanitizedPoints.push({
+      lat: Math.round(pt.lat * 1e6) / 1e6,
+      lng: Math.round(pt.lng * 1e6) / 1e6,
+      label: pt.label.slice(0, 50),
+    })
   }
 
   const { data, error } = await supabase
     .from('field_sampling_plans')
     .insert({
       field_id: params.id,
-      name,
+      name: name.trim().slice(0, 200),
       strategy,
-      num_points: num_points || points.length,
-      points,
+      num_points: sanitizedPoints.length,
+      points: sanitizedPoints,
     })
     .select()
     .single()
@@ -128,6 +173,7 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
+  { params }: { params: { id: string } }
 ) {
   const auth = await requireAuth()
   if (!auth.authenticated) return auth.response
@@ -147,6 +193,7 @@ export async function DELETE(
     .from('field_sampling_plans')
     .delete()
     .eq('id', planId)
+    .eq('field_id', params.id)
 
   if (error) return safeErrorResponse(error, 'DELETE /api/fields/[id]/sampling-plans')
   return NextResponse.json({ ok: true })

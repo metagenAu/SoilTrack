@@ -9,6 +9,16 @@ import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { detectGISFileType, parseGISFileMultiLayer, sanitizeFeatures, GIS_ACCEPT } from '@/lib/parsers/gis'
 
+// Escape HTML to prevent XSS via Leaflet popups/tooltips (which use innerHTML)
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 const MAX_FILE_SIZE_MB = 50
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024
 
@@ -1246,7 +1256,7 @@ export default function TrialMap({
                       if (props && Object.keys(props).length > 0) {
                         const html = Object.entries(props)
                           .filter(([, v]) => v != null && v !== '')
-                          .map(([k, v]) => `<b>${k}:</b> ${v}`)
+                          .map(([k, v]) => `<b>${escapeHtml(String(k))}:</b> ${escapeHtml(String(v))}`)
                           .join('<br/>')
                         if (html) leafletLayer.bindPopup(`<div class="text-xs">${html}</div>`)
                       }
