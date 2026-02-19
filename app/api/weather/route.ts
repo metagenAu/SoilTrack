@@ -70,7 +70,20 @@ export async function GET(request: Request) {
       )
     }
 
-    if (daysBetween(startDate, endDate) > MAX_RANGE_DAYS) {
+    // Cap end_date to 5 days ago — the archive API lags behind real-time
+    const archiveLimit = new Date()
+    archiveLimit.setDate(archiveLimit.getDate() - 5)
+    const archiveLimitStr = archiveLimit.toISOString().slice(0, 10)
+    const safeEndDate = endDate > archiveLimitStr ? archiveLimitStr : endDate
+
+    if (startDate > safeEndDate) {
+      return NextResponse.json(
+        { error: 'Requested date range is too recent for the weather archive (data has a ~5 day lag)' },
+        { status: 400 }
+      )
+    }
+
+    if (daysBetween(startDate, safeEndDate) > MAX_RANGE_DAYS) {
       return NextResponse.json(
         { error: `Date range must be ${MAX_RANGE_DAYS} days or less (~2 years)` },
         { status: 400 }
@@ -98,7 +111,7 @@ export async function GET(request: Request) {
     }
 
     // Build cache key
-    const cacheKey = `${latNum},${lonNum},${startDate},${endDate},${frequency},${requestedKeys.join(',')}`
+    const cacheKey = `${latNum},${lonNum},${startDate},${safeEndDate},${frequency},${requestedKeys.join(',')}`
     const cached = cache.get(cacheKey)
     if (cached && cached.expires > Date.now()) {
       return NextResponse.json(cached.data)
@@ -109,7 +122,7 @@ export async function GET(request: Request) {
       latitude: latNum.toString(),
       longitude: lonNum.toString(),
       start_date: startDate,
-      end_date: endDate,
+      end_date: safeEndDate,
       timezone: 'auto',
     })
     params.set(frequency, requestedKeys.join(','))

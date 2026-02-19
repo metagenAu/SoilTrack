@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { MapPin, CloudRain } from 'lucide-react'
 import {
   DAILY_VARIABLES,
@@ -20,14 +20,25 @@ interface WeatherTabProps {
   locationLabel?: string | null
 }
 
+/** Cap a date string so it's no more recent than 5 days ago (Open-Meteo archive lag). */
+function capToArchiveLimit(dateStr: string): string {
+  const limit = new Date()
+  limit.setDate(limit.getDate() - 5)
+  const limitStr = limit.toISOString().slice(0, 10)
+  return dateStr > limitStr ? limitStr : dateStr
+}
+
 function defaultDateRange(start?: string | null, end?: string | null): [string, string] {
-  if (start && end) return [start, end]
   const now = new Date()
-  const endStr = now.toISOString().slice(0, 10)
+  const fiveDaysAgo = new Date(now)
+  fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5)
+  const safeEnd = fiveDaysAgo.toISOString().slice(0, 10)
+
+  if (start && end) return [start, capToArchiveLimit(end)]
   const oneYearAgo = new Date(now)
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
   const startStr = oneYearAgo.toISOString().slice(0, 10)
-  return [start || startStr, end || endStr]
+  return [start || startStr, end ? capToArchiveLimit(end) : safeEnd]
 }
 
 export default function WeatherTab({
@@ -117,6 +128,16 @@ export default function WeatherTab({
       setLoading(false)
     }
   }
+
+  // Auto-fetch on first mount when coordinates are available
+  const didAutoFetch = useRef(false)
+  useEffect(() => {
+    if (latitude != null && longitude != null && !didAutoFetch.current) {
+      didAutoFetch.current = true
+      fetchWeather()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latitude, longitude])
 
   // No coordinates available
   if (latitude == null || longitude == null) {

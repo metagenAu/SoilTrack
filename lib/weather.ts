@@ -15,7 +15,8 @@ export const DAILY_VARIABLES: WeatherVariable[] = [
   { key: 'et0_fao_evapotranspiration', label: 'ET₀', unit: 'mm', color: '#e9c46a', chartType: 'line' },
   { key: 'wind_speed_10m_max', label: 'Max Wind Speed', unit: 'km/h', color: '#6c757d', chartType: 'line' },
   { key: 'shortwave_radiation_sum', label: 'Solar Radiation', unit: 'MJ/m²', color: '#fca311', chartType: 'line' },
-  { key: 'relative_humidity_2m_mean', label: 'Mean Relative Humidity', unit: '%', color: '#8ecae6', chartType: 'line' },
+  { key: 'relative_humidity_2m_max', label: 'Max Relative Humidity', unit: '%', color: '#8ecae6', chartType: 'line' },
+  { key: 'relative_humidity_2m_min', label: 'Min Relative Humidity', unit: '%', color: '#219ebc', chartType: 'line' },
 ]
 
 export const HOURLY_VARIABLES: WeatherVariable[] = [
@@ -33,7 +34,7 @@ export const HOURLY_VARIABLES: WeatherVariable[] = [
 export const DAILY_GROUPS: { label: string; keys: string[] }[] = [
   { label: 'Temperature', keys: ['temperature_2m_max', 'temperature_2m_min', 'temperature_2m_mean'] },
   { label: 'Water', keys: ['precipitation_sum', 'rain_sum', 'et0_fao_evapotranspiration'] },
-  { label: 'Atmosphere', keys: ['wind_speed_10m_max', 'shortwave_radiation_sum', 'relative_humidity_2m_mean'] },
+  { label: 'Atmosphere', keys: ['wind_speed_10m_max', 'shortwave_radiation_sum', 'relative_humidity_2m_max', 'relative_humidity_2m_min'] },
 ]
 
 export const HOURLY_GROUPS: { label: string; keys: string[] }[] = [
