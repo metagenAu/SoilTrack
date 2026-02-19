@@ -344,7 +344,6 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
         this._canvas = L.DomUtil.create('canvas', 'leaflet-layer') as HTMLCanvasElement
         this._canvas.style.position = 'absolute'
         this._canvas.style.pointerEvents = 'none'
-        this._canvas.style.imageRendering = 'pixelated'
         const pane = map.getPane('overlayPane')
         if (pane) pane.appendChild(this._canvas)
 
@@ -372,9 +371,7 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
         const ctx = canvas.getContext('2d')
         if (!ctx) return
 
-        ctx.imageSmoothingEnabled = false
-
-        const GRID = 8 // pixel step — larger blocks for discrete pixel look
+        const GRID = 4 // pixel step
         const imageData = ctx.createImageData(size.x, size.y)
 
         // Compute bounds padding (extend slightly beyond viewport)
@@ -473,7 +470,7 @@ function HeatmapLayer({ points }: { points: [number, number][] }) {
       points.map(([lat, lng]) => [lat, lng] as L.HeatLatLngTuple),
       {
         radius: 18,
-        blur: 1,
+        blur: 25,
         maxZoom: 17,
         minOpacity: 0.35,
         gradient: {
