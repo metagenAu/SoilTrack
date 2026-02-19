@@ -75,12 +75,38 @@ interface CustomMapLayer {
   created_at: string
 }
 
+interface LinkedField {
+  id: string
+  field_id: string
+  season: string | null
+  fields: {
+    id: string
+    name: string
+    farm: string | null
+    region: string | null
+    area_ha: number | null
+    boundary: FeatureCollection | null
+  }
+}
+
+interface FieldGISLayer {
+  id: string
+  field_id: string
+  name: string
+  file_type: string
+  geojson: FeatureCollection
+  feature_count: number
+  style: { color: string; weight: number; fillOpacity: number } | null
+}
+
 interface TrialMapProps {
   trial: { id: string; gps: string | null; name: string }
   samples: SamplePoint[]
   gisLayers: GISLayer[]
   customLayers?: CustomMapLayer[]
   soilChemistry?: SoilChemistryRow[]
+  linkedFields?: LinkedField[]
+  fieldGisLayers?: FieldGISLayer[]
   supabaseUrl: string
 }
 
@@ -564,6 +590,8 @@ export default function TrialMap({
   gisLayers: initialLayers,
   customLayers: initialCustomLayers = [],
   soilChemistry = [],
+  linkedFields = [],
+  fieldGisLayers: initialFieldGisLayers = [],
   supabaseUrl,
 }: TrialMapProps) {
   const [gisLayers, setGisLayers] = useState(initialLayers)
@@ -590,6 +618,31 @@ export default function TrialMap({
         .map((l) => ({ ...l, geojson: sanitizeFeatures(l.geojson) }))
         .filter((l) => l.geojson.features?.length > 0),
     [gisLayers]
+  )
+
+  // Prepare linked field boundaries for rendering on the map
+  const fieldBoundaries = useMemo(
+    () =>
+      linkedFields
+        .filter((lf) => lf.fields?.boundary?.features?.length)
+        .map((lf) => ({
+          fieldId: lf.fields.id,
+          name: lf.fields.name,
+          farm: lf.fields.farm,
+          area_ha: lf.fields.area_ha,
+          boundary: lf.fields.boundary as FeatureCollection,
+        })),
+    [linkedFields]
+  )
+
+  // Sanitise field GIS layers
+  const sanitizedFieldGisLayers = useMemo(
+    () =>
+      initialFieldGisLayers
+        .filter((l) => l.geojson && l.geojson.type === 'FeatureCollection')
+        .map((l) => ({ ...l, geojson: sanitizeFeatures(l.geojson) }))
+        .filter((l) => l.geojson.features?.length > 0),
+    [initialFieldGisLayers]
   )
 
   // Discover available numeric metrics from all data sources
@@ -670,8 +723,12 @@ export default function TrialMap({
   }
 
   const allGeoJsons = useMemo(
-    () => sanitizedGisLayers.map((l) => l.geojson),
-    [sanitizedGisLayers]
+    () => [
+      ...sanitizedGisLayers.map((l) => l.geojson),
+      ...fieldBoundaries.map((fb) => fb.boundary),
+      ...sanitizedFieldGisLayers.map((l) => l.geojson),
+    ],
+    [sanitizedGisLayers, fieldBoundaries, sanitizedFieldGisLayers]
   )
 
   // Compute metric overlay data when a metric is active
@@ -1010,7 +1067,7 @@ export default function TrialMap({
 
   // ---------- Render ----------
 
-  const totalLayers = sanitizedGisLayers.length + customLayers.length
+  const totalLayers = sanitizedGisLayers.length + customLayers.length + fieldBoundaries.length + sanitizedFieldGisLayers.length
 
   return (
     <div>
@@ -1269,6 +1326,60 @@ export default function TrialMap({
               )
             })}
 
+            {/* Linked field boundaries */}
+            {fieldBoundaries.map((fb) => (
+              <LayersControl.Overlay checked key={`field-boundary-${fb.fieldId}`} name={`Field: ${fb.name}`}>
+                <GeoJSON
+                  key={`field-boundary-${fb.fieldId}`}
+                  data={fb.boundary}
+                  style={{
+                    color: '#22c55e',
+                    weight: 3,
+                    fillOpacity: 0.05,
+                    fillColor: '#22c55e',
+                    dashArray: '8, 4',
+                  }}
+                  onEachFeature={(_feature, layer) => {
+                    const parts = [fb.name]
+                    if (fb.farm) parts.push(fb.farm)
+                    if (fb.area_ha) parts.push(`${fb.area_ha} ha`)
+                    layer.bindPopup(
+                      `<div class="text-sm"><p class="font-semibold">${escapeHtml(parts[0])}</p>${parts.slice(1).map(p => `<p class="text-gray-500">${escapeHtml(p)}</p>`).join('')}</div>`
+                    )
+                  }}
+                />
+              </LayersControl.Overlay>
+            ))}
+
+            {/* Linked field GIS layers */}
+            {sanitizedFieldGisLayers.map((layer, idx) => {
+              const color = layer.style?.color || LAYER_COLORS[(sanitizedGisLayers.length + idx + 2) % LAYER_COLORS.length]
+              return (
+                <LayersControl.Overlay checked key={`field-gis-${layer.id}`} name={`Field GIS: ${layer.name}`}>
+                  <GeoJSON
+                    key={`field-gis-${layer.id}`}
+                    data={layer.geojson}
+                    style={{
+                      color,
+                      weight: layer.style?.weight ?? 2,
+                      fillOpacity: layer.style?.fillOpacity ?? 0.15,
+                      fillColor: color,
+                    }}
+                    onEachFeature={(feature, leafletLayer) => {
+                      const props = feature.properties
+                      if (props && Object.keys(props).length > 0) {
+                        const html = Object.entries(props)
+                          .filter(([, v]) => v != null && v !== '')
+                          .map(([k, v]) => `<b>${escapeHtml(String(k))}:</b> ${escapeHtml(String(v))}`)
+                          .join('<br/>')
+                        if (html) leafletLayer.bindPopup(`<div class="text-xs">${html}</div>`)
+                      }
+                    }}
+                  />
+                </LayersControl.Overlay>
+              )
+            })}
+
             {/* Metric overlay (color-coded points) — skip for GIS metrics since the layer itself is color-coded */}
             {metricLayerData && selectedMetric && selectedMetric.source !== 'gis' && (
               <LayersControl.Overlay checked name={`${selectedMetric.label.slice(0, 30)} (metric)`}>
@@ -1357,7 +1468,7 @@ export default function TrialMap({
       </div>
 
       {/* Layer list */}
-      {(sanitizedGisLayers.length > 0 || customLayers.length > 0) && (
+      {(sanitizedGisLayers.length > 0 || customLayers.length > 0 || fieldBoundaries.length > 0 || sanitizedFieldGisLayers.length > 0) && (
         <div className="mt-4">
           <p className="signpost-label mb-2">LAYERS</p>
           <div className="space-y-2">
@@ -1455,6 +1566,51 @@ export default function TrialMap({
                       <Trash2 size={14} />
                     )}
                   </button>
+                </div>
+              )
+            })}
+
+            {/* Linked field boundaries */}
+            {fieldBoundaries.map((fb) => (
+              <div
+                key={`field-boundary-${fb.fieldId}`}
+                className="flex items-center justify-between p-3 rounded-lg border border-green-200 bg-green-50/50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#22c55e' }} />
+                  <div>
+                    <p className="text-sm font-medium">{fb.name}</p>
+                    <p className="text-xs text-brand-grey-1">
+                      Field boundary{fb.farm ? ` \u00b7 ${fb.farm}` : ''}{fb.area_ha ? ` \u00b7 ${fb.area_ha} ha` : ''}
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href={`/fields/${fb.fieldId}`}
+                  className="text-xs text-meta-blue hover:underline"
+                >
+                  View field
+                </a>
+              </div>
+            ))}
+
+            {/* Linked field GIS layers */}
+            {sanitizedFieldGisLayers.map((layer, idx) => {
+              const color = layer.style?.color || LAYER_COLORS[(sanitizedGisLayers.length + idx + 2) % LAYER_COLORS.length]
+              return (
+                <div
+                  key={`field-gis-${layer.id}`}
+                  className="flex items-center justify-between p-3 rounded-lg border border-green-200 bg-green-50/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+                    <div>
+                      <p className="text-sm font-medium">{layer.name}</p>
+                      <p className="text-xs text-brand-grey-1">
+                        Field GIS &middot; {layer.file_type.toUpperCase()} &middot; {layer.feature_count} feature{layer.feature_count !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )
             })}

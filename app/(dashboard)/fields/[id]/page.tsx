@@ -21,14 +21,40 @@ async function getFieldData(id: string) {
 
   if (fieldRes.error || !fieldRes.data) return null
 
+  // Load trial spatial data for linked trials (sample points + GIS layers)
+  const fieldTrials = fieldTrialsRes.data || []
+  const linkedTrialIds = fieldTrials.map((ft: any) => ft.trial_id).filter(Boolean)
+  let trialSamples: any[] = []
+  let trialGisLayers: any[] = []
+  if (linkedTrialIds.length > 0) {
+    const [samplesRes, tGisRes] = await Promise.all([
+      supabase
+        .from('soil_health_samples')
+        .select('sample_no, latitude, longitude, property, block, trial_id')
+        .in('trial_id', linkedTrialIds)
+        .not('latitude', 'is', null)
+        .not('longitude', 'is', null)
+        .order('sample_no'),
+      supabase
+        .from('trial_gis_layers')
+        .select('*')
+        .in('trial_id', linkedTrialIds)
+        .order('created_at'),
+    ])
+    trialSamples = samplesRes.data || []
+    trialGisLayers = tGisRes.data || []
+  }
+
   return {
     field: fieldRes.data,
-    fieldTrials: fieldTrialsRes.data || [],
+    fieldTrials,
     annotations: annotationsRes.data || [],
     samplingPlans: samplingPlansRes.data || [],
     gisLayers: gisLayersRes.data || [],
     allTrials: allTrialsRes.data || [],
     clients: clientsRes.data || [],
+    trialSamples,
+    trialGisLayers,
   }
 }
 
@@ -41,7 +67,7 @@ export default async function FieldDetailPage({
 
   if (!data) notFound()
 
-  const { field, fieldTrials, annotations, samplingPlans, gisLayers, allTrials, clients } = data
+  const { field, fieldTrials, annotations, samplingPlans, gisLayers, allTrials, clients, trialSamples, trialGisLayers } = data
   const clientName = field.client_id
     ? clients.find((c) => c.id === field.client_id)?.name || null
     : null
@@ -91,6 +117,8 @@ export default async function FieldDetailPage({
         gisLayers={gisLayers}
         allTrials={allTrials}
         clients={clients}
+        trialSamples={trialSamples}
+        trialGisLayers={trialGisLayers}
       />
     </div>
   )

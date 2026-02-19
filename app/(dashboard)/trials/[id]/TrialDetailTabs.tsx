@@ -11,6 +11,7 @@ import PhotosTab from '@/components/trials/PhotosTab'
 import TrialMap from '@/components/trials/TrialMapWrapper'
 import StatCard from '@/components/ui/StatCard'
 import EditableField from '@/components/trials/EditableField'
+import TrialFieldsPanel from '@/components/trials/TrialFieldsPanel'
 
 interface TrialDetailTabsProps {
   trial: any
@@ -24,10 +25,13 @@ interface TrialDetailTabsProps {
   photos: any[]
   gisLayers: any[]
   customLayers?: any[]
+  linkedFields?: any[]
+  allFields?: any[]
+  fieldGisLayers?: any[]
   supabaseUrl: string
 }
 
-const tabs = ['Summary', 'Treatments', 'Soil Health', 'Plot Data', 'Assay Results', 'Photos', 'Map', 'Management']
+const tabs = ['Summary', 'Treatments', 'Soil Health', 'Plot Data', 'Assay Results', 'Photos', 'Map', 'Fields', 'Management']
 
 export default function TrialDetailTabs({
   trial,
@@ -41,6 +45,9 @@ export default function TrialDetailTabs({
   photos,
   gisLayers,
   customLayers = [],
+  linkedFields = [],
+  allFields = [],
+  fieldGisLayers = [],
   supabaseUrl,
 }: TrialDetailTabsProps) {
   const [activeTab, setActiveTab] = useState('Summary')
@@ -170,9 +177,19 @@ export default function TrialDetailTabs({
             gisLayers={gisLayers}
             customLayers={customLayers}
             soilChemistry={soilChemistry}
+            linkedFields={linkedFields}
+            fieldGisLayers={fieldGisLayers}
             supabaseUrl={supabaseUrl}
           />
         </div>
+      )}
+
+      {activeTab === 'Fields' && (
+        <TrialFieldsPanel
+          trialId={trial.id}
+          linkedFields={linkedFields}
+          allFields={allFields}
+        />
       )}
 
       {activeTab === 'Management' && (
