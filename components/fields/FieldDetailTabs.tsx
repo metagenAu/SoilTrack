@@ -14,6 +14,7 @@ interface FieldDetailTabsProps {
   field: {
     id: string
     name: string
+    area_ha: number | null
     boundary: FeatureCollection | null
     boundary_source: string | null
     [key: string]: unknown
@@ -48,6 +49,7 @@ interface FieldDetailTabsProps {
     name: string
     strategy: string
     num_points: number
+    spacing_ha: number | null
     points: Array<{ lat: number; lng: number; label: string }>
     created_at: string
   }>
@@ -152,6 +154,7 @@ export default function FieldDetailTabs({
         <SamplingPlanPanel
           fieldId={field.id}
           boundary={field.boundary}
+          areaHa={field.area_ha}
           samplingPlans={samplingPlans}
         />
       )}
