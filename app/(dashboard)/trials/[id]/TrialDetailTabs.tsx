@@ -12,6 +12,8 @@ import TrialMap from '@/components/trials/TrialMapWrapper'
 import StatCard from '@/components/ui/StatCard'
 import EditableField from '@/components/trials/EditableField'
 import TrialFieldsPanel from '@/components/trials/TrialFieldsPanel'
+import WeatherTab from '@/components/weather/WeatherTab'
+import { parseGPS } from '@/lib/weather'
 
 interface TrialDetailTabsProps {
   trial: any
@@ -31,7 +33,7 @@ interface TrialDetailTabsProps {
   supabaseUrl: string
 }
 
-const tabs = ['Summary', 'Treatments', 'Soil Health', 'Plot Data', 'Assay Results', 'Photos', 'Map', 'Fields', 'Management']
+const tabs = ['Summary', 'Treatments', 'Soil Health', 'Plot Data', 'Assay Results', 'Photos', 'Map', 'Weather', 'Fields', 'Management']
 
 export default function TrialDetailTabs({
   trial,
@@ -51,6 +53,7 @@ export default function TrialDetailTabs({
   supabaseUrl,
 }: TrialDetailTabsProps) {
   const [activeTab, setActiveTab] = useState('Summary')
+  const parsedGps = parseGPS(trial.gps)
 
   return (
     <div>
@@ -182,6 +185,16 @@ export default function TrialDetailTabs({
             supabaseUrl={supabaseUrl}
           />
         </div>
+      )}
+
+      {activeTab === 'Weather' && (
+        <WeatherTab
+          latitude={parsedGps?.[0] ?? null}
+          longitude={parsedGps?.[1] ?? null}
+          defaultStartDate={trial.planting_date}
+          defaultEndDate={trial.harvest_date}
+          locationLabel={trial.location}
+        />
       )}
 
       {activeTab === 'Fields' && (
