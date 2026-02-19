@@ -25,6 +25,16 @@ interface SamplingPlanMapProps {
   onPointsChange: (points: SamplingPoint[]) => void
 }
 
+// Escape HTML to prevent XSS via Leaflet tooltips (which use innerHTML)
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // Custom icon for draggable sampling point markers
 const samplingPointIcon = L.divIcon({
   className: 'sampling-point-marker',
@@ -58,7 +68,7 @@ export default function SamplingPlanMap({
         title: pt.label,
       })
 
-      marker.bindTooltip(pt.label, {
+      marker.bindTooltip(escapeHtml(pt.label), {
         permanent: false,
         direction: 'top',
         offset: [0, -8],
