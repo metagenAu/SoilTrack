@@ -56,13 +56,18 @@ export interface WeatherResponse {
 }
 
 /**
- * Parse a "lat, lon" GPS string into a [lat, lon] tuple.
- * Extracted from TrialMap.tsx to be shared across components.
+ * Parse a GPS string into a [lat, lon] tuple.
+ * Handles common formats:
+ *   "lat, lon"          – comma-separated
+ *   "lat lon"           – space-separated
+ *   "lat, lon, alt"     – three parts (altitude ignored)
+ *   "lat lon alt"       – space-separated with altitude
  */
 export function parseGPS(gps: string | null): [number, number] | null {
-  if (!gps) return null
-  const parts = gps.split(',').map((s) => parseFloat(s.trim()))
-  if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+  if (!gps || !gps.trim()) return null
+  // Split on commas or whitespace, filter to valid numbers
+  const parts = gps.split(/[,\s]+/).map((s) => parseFloat(s.trim())).filter((n) => !isNaN(n))
+  if (parts.length >= 2 && parts[0] >= -90 && parts[0] <= 90 && parts[1] >= -180 && parts[1] <= 180) {
     return [parts[0], parts[1]]
   }
   return null

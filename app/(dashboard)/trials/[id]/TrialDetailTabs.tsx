@@ -271,6 +271,7 @@ export default function TrialDetailTabs({
           defaultStartDate={trial.planting_date}
           defaultEndDate={trial.harvest_date}
           locationLabel={trial.location}
+          rawGps={trial.gps}
         />
       )}
 

@@ -177,6 +177,7 @@ export default function FieldDetailTabs({
           latitude={weatherCoords?.[0] ?? null}
           longitude={weatherCoords?.[1] ?? null}
           locationLabel={field.name}
+          rawGps={fieldTrials[0]?.trials?.gps ?? null}
         />
       )}
 

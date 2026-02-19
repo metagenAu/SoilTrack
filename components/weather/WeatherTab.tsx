@@ -18,6 +18,7 @@ interface WeatherTabProps {
   defaultStartDate?: string | null
   defaultEndDate?: string | null
   locationLabel?: string | null
+  rawGps?: string | null
 }
 
 /** Cap a date string so it's no more recent than 5 days ago (Open-Meteo archive lag). */
@@ -47,6 +48,7 @@ export default function WeatherTab({
   defaultStartDate,
   defaultEndDate,
   locationLabel,
+  rawGps,
 }: WeatherTabProps) {
   const [dates, setDates] = useState(() => defaultDateRange(defaultStartDate, defaultEndDate))
   const [frequency, setFrequency] = useState<'daily' | 'hourly'>('daily')
@@ -145,8 +147,9 @@ export default function WeatherTab({
       <div className="card text-center py-12">
         <CloudRain size={40} className="mx-auto text-brand-grey-1 mb-3" />
         <p className="text-brand-grey-1">
-          No GPS coordinates available for this {locationLabel ? 'location' : 'trial/field'}.
-          Add GPS data to view weather information.
+          {rawGps
+            ? `Could not parse GPS value "${rawGps}". Please update it to "latitude, longitude" format (e.g. "-33.87, 151.21").`
+            : `No GPS coordinates available for this ${locationLabel ? 'location' : 'trial/field'}. Add GPS data to view weather information.`}
         </p>
       </div>
     )
