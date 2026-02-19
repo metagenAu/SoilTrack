@@ -18,6 +18,7 @@ interface SamplingPlan {
   name: string
   strategy: string
   num_points: number
+  spacing_ha: number | null
   points: SamplingPoint[]
   created_at: string
 }
@@ -25,8 +26,14 @@ interface SamplingPlan {
 interface SamplingPlanPanelProps {
   fieldId: string
   boundary: FeatureCollection | null
+  areaHa: number | null
   samplingPlans: Array<SamplingPlan>
 }
+
+type InputMode = 'count' | 'density'
+
+/** Metres per degree of latitude (constant). */
+const METRES_PER_DEG_LAT = 111320
 
 /**
  * Check if a point is inside a polygon using ray-casting algorithm.
@@ -82,6 +89,17 @@ function extractBoundaryInfo(boundary: FeatureCollection) {
 }
 
 /**
+ * Convert hectare cell size to lat/lng grid spacing using geodesic approximation.
+ * 1 ha = 10,000 m². For a square cell of X ha, side = sqrt(X * 10000) metres.
+ */
+function haToGridSpacing(haPerSample: number, centerLat: number): { latStep: number; lngStep: number } {
+  const cellSideMetres = Math.sqrt(haPerSample * 10000)
+  const latStep = cellSideMetres / METRES_PER_DEG_LAT
+  const lngStep = cellSideMetres / (METRES_PER_DEG_LAT * Math.cos(centerLat * Math.PI / 180))
+  return { latStep, lngStep }
+}
+
+/**
  * Generate random points inside the boundary polygon.
  */
 function generateRandomPoints(
@@ -116,6 +134,7 @@ function generateRandomPoints(
 
 /**
  * Generate grid-based points inside the boundary polygon.
+ * When numPoints is provided, the grid dimensions are estimated from the point count.
  */
 function generateGridPoints(
   boundary: FeatureCollection,
@@ -150,6 +169,49 @@ function generateGridPoints(
         idx++
       }
     }
+  }
+
+  return points
+}
+
+/**
+ * Generate grid points using hectare-based spacing.
+ * Each grid cell covers approximately `haPerSample` hectares.
+ * Grid steps are computed geodesically so cells are square on the ground.
+ */
+function generateGridPointsByDensity(
+  boundary: FeatureCollection,
+  haPerSample: number
+): SamplingPoint[] {
+  const { polygons, minLat, maxLat, minLng, maxLng } = extractBoundaryInfo(boundary)
+  if (polygons.length === 0) return []
+
+  const centerLat = (minLat + maxLat) / 2
+  const { latStep, lngStep } = haToGridSpacing(haPerSample, centerLat)
+
+  // Offset the grid by half a cell so points sit at cell centres
+  const startLat = minLat + latStep / 2
+  const startLng = minLng + lngStep / 2
+
+  const points: SamplingPoint[] = []
+  let idx = 1
+
+  let lat = startLat
+  while (lat <= maxLat) {
+    let lng = startLng
+    while (lng <= maxLng) {
+      const inside = polygons.some((poly) => pointInPolygon(lat, lng, poly))
+      if (inside) {
+        points.push({
+          lat: Math.round(lat * 1e6) / 1e6,
+          lng: Math.round(lng * 1e6) / 1e6,
+          label: `G${idx}`,
+        })
+        idx++
+      }
+      lng += lngStep
+    }
+    lat += latStep
   }
 
   return points
@@ -207,16 +269,66 @@ function generateStratifiedPoints(
   return points
 }
 
+/**
+ * Generate stratified random points using hectare-based strata.
+ * Each stratum covers approximately `haPerSample` hectares.
+ */
+function generateStratifiedPointsByDensity(
+  boundary: FeatureCollection,
+  haPerSample: number
+): SamplingPoint[] {
+  const { polygons, minLat, maxLat, minLng, maxLng } = extractBoundaryInfo(boundary)
+  if (polygons.length === 0) return []
+
+  const centerLat = (minLat + maxLat) / 2
+  const { latStep, lngStep } = haToGridSpacing(haPerSample, centerLat)
+
+  const points: SamplingPoint[] = []
+  let idx = 1
+
+  let cellMinLat = minLat
+  while (cellMinLat + latStep <= maxLat + latStep / 2) {
+    let cellMinLng = minLng
+    while (cellMinLng + lngStep <= maxLng + lngStep / 2) {
+      let found = false
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const lat = cellMinLat + Math.random() * latStep
+        const lng = cellMinLng + Math.random() * lngStep
+
+        const inside = polygons.some((poly) => pointInPolygon(lat, lng, poly))
+        if (inside) {
+          points.push({
+            lat: Math.round(lat * 1e6) / 1e6,
+            lng: Math.round(lng * 1e6) / 1e6,
+            label: `ST${idx}`,
+          })
+          idx++
+          found = true
+          break
+        }
+      }
+      if (!found) { /* skip strata outside boundary */ }
+      cellMinLng += lngStep
+    }
+    cellMinLat += latStep
+  }
+
+  return points
+}
+
 export default function SamplingPlanPanel({
   fieldId,
   boundary,
+  areaHa,
   samplingPlans,
 }: SamplingPlanPanelProps) {
   const router = useRouter()
   const [showCreate, setShowCreate] = useState(false)
   const [name, setName] = useState('')
   const [strategy, setStrategy] = useState<'random' | 'grid' | 'stratified'>('random')
+  const [inputMode, setInputMode] = useState<InputMode>('count')
   const [numPoints, setNumPoints] = useState(10)
+  const [spacingHa, setSpacingHa] = useState(1)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewPoints, setPreviewPoints] = useState<SamplingPoint[] | null>(null)
@@ -230,20 +342,49 @@ export default function SamplingPlanPanel({
 
   const hasBoundary = boundary?.features && boundary.features.length > 0
 
+  // Calculate estimated point count from density
+  const estimatedCountFromDensity =
+    areaHa && spacingHa > 0 ? Math.max(1, Math.round(areaHa / spacingHa)) : null
+
   function generatePreview() {
     if (!boundary || !hasBoundary) return
 
     let points: SamplingPoint[]
-    switch (strategy) {
-      case 'random':
-        points = generateRandomPoints(boundary, numPoints)
-        break
-      case 'grid':
-        points = generateGridPoints(boundary, numPoints)
-        break
-      case 'stratified':
-        points = generateStratifiedPoints(boundary, numPoints)
-        break
+
+    if (inputMode === 'density' && spacingHa > 0) {
+      // Density mode: use ha-based spacing for grid/stratified,
+      // or derive count from field area for random
+      switch (strategy) {
+        case 'random': {
+          const count = estimatedCountFromDensity || 10
+          points = generateRandomPoints(boundary, Math.min(count, 500))
+          break
+        }
+        case 'grid':
+          points = generateGridPointsByDensity(boundary, spacingHa)
+          break
+        case 'stratified':
+          points = generateStratifiedPointsByDensity(boundary, spacingHa)
+          break
+      }
+    } else {
+      // Count mode: existing behaviour
+      switch (strategy) {
+        case 'random':
+          points = generateRandomPoints(boundary, numPoints)
+          break
+        case 'grid':
+          points = generateGridPoints(boundary, numPoints)
+          break
+        case 'stratified':
+          points = generateStratifiedPoints(boundary, numPoints)
+          break
+      }
+    }
+
+    // Safety cap at 500
+    if (points.length > 500) {
+      points = points.slice(0, 500)
     }
 
     setPreviewPoints(points)
@@ -272,6 +413,7 @@ export default function SamplingPlanPanel({
           strategy,
           num_points: previewPoints.length,
           points: previewPoints,
+          spacing_ha: inputMode === 'density' ? spacingHa : null,
         }),
       })
 
@@ -384,6 +526,16 @@ export default function SamplingPlanPanel({
     ? samplingPlans.find((p) => p.id === editingPlanId) || null
     : null
 
+  function formatPlanMeta(plan: SamplingPlan) {
+    const parts = [`${plan.num_points} points`]
+    if (plan.spacing_ha) {
+      parts.push(`${plan.spacing_ha} ha/sample`)
+    }
+    parts.push(plan.strategy.toUpperCase())
+    parts.push(new Date(plan.created_at).toLocaleDateString())
+    return parts
+  }
+
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-4">
@@ -452,6 +604,26 @@ export default function SamplingPlanPanel({
             </div>
             <div>
               <label className="block text-xs font-medium text-brand-grey-1 mb-1">
+                Input Mode
+              </label>
+              <select
+                value={inputMode}
+                onChange={(e) => {
+                  setInputMode(e.target.value as InputMode)
+                  setPreviewPoints(null)
+                }}
+                className="w-full border border-brand-grey-2 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-meta-blue/30"
+              >
+                <option value="count">Number of points</option>
+                <option value="density">Density (ha per sample)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Count input */}
+          {inputMode === 'count' && (
+            <div>
+              <label className="block text-xs font-medium text-brand-grey-1 mb-1">
                 Number of Points
               </label>
               <input
@@ -466,7 +638,41 @@ export default function SamplingPlanPanel({
                 className="w-full border border-brand-grey-2 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-meta-blue/30"
               />
             </div>
-          </div>
+          )}
+
+          {/* Density input */}
+          {inputMode === 'density' && (
+            <div>
+              <label className="block text-xs font-medium text-brand-grey-1 mb-1">
+                Hectares per Sample
+              </label>
+              <input
+                type="number"
+                min={0.1}
+                max={1000}
+                step={0.1}
+                value={spacingHa}
+                onChange={(e) => {
+                  setSpacingHa(parseFloat(e.target.value) || 1)
+                  setPreviewPoints(null)
+                }}
+                className="w-full border border-brand-grey-2 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-meta-blue/30"
+              />
+              {areaHa != null && spacingHa > 0 && (
+                <p className="text-xs text-brand-grey-1 mt-1">
+                  Field area: {areaHa} ha &mdash; ~{estimatedCountFromDensity} sample{estimatedCountFromDensity !== 1 ? 's' : ''} at {spacingHa} ha/sample
+                  {strategy === 'grid' || strategy === 'stratified' ? (
+                    <> (grid cell ~{Math.round(Math.sqrt(spacingHa * 10000))} m &times; {Math.round(Math.sqrt(spacingHa * 10000))} m)</>
+                  ) : null}
+                </p>
+              )}
+              {!areaHa && (
+                <p className="text-xs text-amber-600 mt-1">
+                  Field area not set. The density will be applied using the boundary bounding box.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-2">
             <Button size="sm" variant="secondary" onClick={generatePreview}>
@@ -491,7 +697,8 @@ export default function SamplingPlanPanel({
           {previewPoints && (
             <div className="mt-2 space-y-3">
               <p className="text-xs text-brand-grey-1">
-                Generated {previewPoints.length} sample points ({strategy}).
+                Generated {previewPoints.length} sample points ({strategy}
+                {inputMode === 'density' ? `, ${spacingHa} ha/sample` : ''}).
                 Drag points on the map to adjust positions before saving.
               </p>
               <SamplingPlanMapWrapper
@@ -600,9 +807,9 @@ export default function SamplingPlanPanel({
               <div>
                 <span className="text-sm font-medium text-brand-black">{plan.name}</span>
                 <div className="flex items-center gap-3 text-xs text-brand-grey-1 mt-0.5">
-                  <span>{plan.num_points} points</span>
-                  <span className="uppercase">{plan.strategy}</span>
-                  <span>{new Date(plan.created_at).toLocaleDateString()}</span>
+                  {formatPlanMeta(plan).map((part, i) => (
+                    <span key={i}>{part}</span>
+                  ))}
                 </div>
               </div>
               <div className="flex items-center gap-1">

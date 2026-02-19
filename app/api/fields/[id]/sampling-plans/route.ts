@@ -34,7 +34,7 @@ export async function POST(
   const supabase = createServerSupabaseClient()
   const body = await request.json()
 
-  const { name, strategy, points } = body
+  const { name, strategy, points, spacing_ha } = body
 
   if (!name || !strategy || !points || !Array.isArray(points)) {
     return NextResponse.json(
@@ -88,6 +88,12 @@ export async function POST(
     })
   }
 
+  // Validate spacing_ha if provided
+  const sanitizedSpacingHa =
+    spacing_ha != null && typeof spacing_ha === 'number' && isFinite(spacing_ha) && spacing_ha > 0
+      ? Math.round(spacing_ha * 100) / 100
+      : null
+
   const { data, error } = await supabase
     .from('field_sampling_plans')
     .insert({
@@ -96,6 +102,7 @@ export async function POST(
       strategy,
       num_points: sanitizedPoints.length,
       points: sanitizedPoints,
+      spacing_ha: sanitizedSpacingHa,
     })
     .select()
     .single()
