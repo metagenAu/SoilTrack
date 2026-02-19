@@ -289,7 +289,21 @@ CREATE POLICY "Admin can delete field_gis_layers"
 
 -- ============================================================
 -- H5: Fix custom_map_layers — require authentication
+-- Ensure table exists (migration 012 may not have been applied)
 -- ============================================================
+CREATE TABLE IF NOT EXISTS custom_map_layers (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  trial_id    TEXT        NOT NULL REFERENCES trials(id) ON DELETE CASCADE,
+  name        TEXT        NOT NULL,
+  metric_columns TEXT[]   NOT NULL DEFAULT '{}',
+  points      JSONB       NOT NULL DEFAULT '[]',
+  point_count INT         NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_custom_map_layers_trial ON custom_map_layers(trial_id);
+ALTER TABLE custom_map_layers ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS "Users can view custom_map_layers" ON custom_map_layers;
 DROP POLICY IF EXISTS "Users can insert custom_map_layers" ON custom_map_layers;
 DROP POLICY IF EXISTS "Users can delete custom_map_layers" ON custom_map_layers;
