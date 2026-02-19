@@ -28,7 +28,6 @@ interface TrialFieldsPanelProps {
     farm: string | null
     region: string | null
     area_ha: number | null
-    boundary: any | null
   }>
 }
 

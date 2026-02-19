@@ -35,7 +35,7 @@ async function getTrialData(id: string) {
     supabase.from('trial_gis_layers').select('*').eq('trial_id', id).order('created_at'),
     supabase.from('custom_map_layers').select('*').eq('trial_id', id).order('created_at'),
     supabase.from('field_trials').select('*, fields(id, name, farm, region, area_ha, boundary)').eq('trial_id', id).order('created_at'),
-    supabase.from('fields').select('id, name, farm, region, area_ha, boundary').order('name'),
+    supabase.from('fields').select('id, name, farm, region, area_ha').order('name'),
   ])
 
   if (trialRes.error || !trialRes.data) return null

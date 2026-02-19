@@ -1465,7 +1465,7 @@ export default function TrialMap({
       </div>
 
       {/* Layer list */}
-      {(sanitizedGisLayers.length > 0 || customLayers.length > 0) && (
+      {(sanitizedGisLayers.length > 0 || customLayers.length > 0 || fieldBoundaries.length > 0 || sanitizedFieldGisLayers.length > 0) && (
         <div className="mt-4">
           <p className="signpost-label mb-2">LAYERS</p>
           <div className="space-y-2">
