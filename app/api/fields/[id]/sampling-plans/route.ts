@@ -59,6 +59,43 @@ export async function POST(
   return NextResponse.json(data, { status: 201 })
 }
 
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const auth = await requireAuth()
+  if (!auth.authenticated) return auth.response
+  if (!canUpload(auth.role)) {
+    return NextResponse.json({ error: 'Upload permission required' }, { status: 403 })
+  }
+
+  const supabase = createServerSupabaseClient()
+  const body = await request.json()
+
+  const { plan_id, points } = body
+
+  if (!plan_id || !points || !Array.isArray(points)) {
+    return NextResponse.json(
+      { error: 'plan_id and points array are required' },
+      { status: 400 }
+    )
+  }
+
+  const { data, error } = await supabase
+    .from('field_sampling_plans')
+    .update({
+      points,
+      num_points: points.length,
+    })
+    .eq('id', plan_id)
+    .eq('field_id', params.id)
+    .select()
+    .single()
+
+  if (error) return safeErrorResponse(error, 'PUT /api/fields/[id]/sampling-plans')
+  return NextResponse.json(data)
+}
+
 export async function DELETE(
   request: Request,
 ) {

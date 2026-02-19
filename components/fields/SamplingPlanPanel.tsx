@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Download, Grid3X3 } from 'lucide-react'
+import { Plus, Trash2, Download, Grid3X3, Pencil, Save, X } from 'lucide-react'
 import Button from '@/components/ui/Button'
+import SamplingPlanMapWrapper from './SamplingPlanMapWrapper'
 import type { FeatureCollection } from 'geojson'
 
 interface SamplingPoint {
@@ -12,17 +13,19 @@ interface SamplingPoint {
   label: string
 }
 
+interface SamplingPlan {
+  id: string
+  name: string
+  strategy: string
+  num_points: number
+  points: SamplingPoint[]
+  created_at: string
+}
+
 interface SamplingPlanPanelProps {
   fieldId: string
   boundary: FeatureCollection | null
-  samplingPlans: Array<{
-    id: string
-    name: string
-    strategy: string
-    num_points: number
-    points: SamplingPoint[]
-    created_at: string
-  }>
+  samplingPlans: Array<SamplingPlan>
 }
 
 /**
@@ -218,6 +221,13 @@ export default function SamplingPlanPanel({
   const [error, setError] = useState<string | null>(null)
   const [previewPoints, setPreviewPoints] = useState<SamplingPoint[] | null>(null)
 
+  // Editing state for existing plans
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null)
+  const [editedPoints, setEditedPoints] = useState<SamplingPoint[] | null>(null)
+  const [editModified, setEditModified] = useState(false)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editStatusMsg, setEditStatusMsg] = useState<string | null>(null)
+
   const hasBoundary = boundary?.features && boundary.features.length > 0
 
   function generatePreview() {
@@ -290,6 +300,11 @@ export default function SamplingPlanPanel({
         { method: 'DELETE' }
       )
       if (!res.ok) throw new Error('Failed to delete')
+      if (editingPlanId === planId) {
+        setEditingPlanId(null)
+        setEditedPoints(null)
+        setEditModified(false)
+      }
       router.refresh()
     } catch {
       // silent
@@ -310,6 +325,65 @@ export default function SamplingPlanPanel({
     URL.revokeObjectURL(url)
   }
 
+  function startEditing(plan: SamplingPlan) {
+    setEditingPlanId(plan.id)
+    setEditedPoints([...plan.points])
+    setEditModified(false)
+    setEditStatusMsg(null)
+    // Close create form if open
+    setShowCreate(false)
+    setPreviewPoints(null)
+  }
+
+  function cancelEditing() {
+    setEditingPlanId(null)
+    setEditedPoints(null)
+    setEditModified(false)
+    setEditStatusMsg(null)
+  }
+
+  function handleEditPointsChange(newPoints: SamplingPoint[]) {
+    setEditedPoints(newPoints)
+    setEditModified(true)
+    setEditStatusMsg(null)
+  }
+
+  async function saveEditedPoints() {
+    if (!editingPlanId || !editedPoints) return
+
+    setEditSaving(true)
+    setEditStatusMsg(null)
+
+    try {
+      const res = await fetch(`/api/fields/${fieldId}/sampling-plans`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan_id: editingPlanId,
+          points: editedPoints,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to save points')
+      }
+
+      setEditModified(false)
+      setEditStatusMsg('Points saved')
+      setTimeout(() => setEditStatusMsg(null), 3000)
+      router.refresh()
+    } catch (err) {
+      setEditStatusMsg(err instanceof Error ? err.message : 'Error saving points')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  const editingPlan = editingPlanId
+    ? samplingPlans.find((p) => p.id === editingPlanId) || null
+    : null
+
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-4">
@@ -319,7 +393,12 @@ export default function SamplingPlanPanel({
         <Button
           size="sm"
           variant="secondary"
-          onClick={() => setShowCreate(!showCreate)}
+          onClick={() => {
+            setShowCreate(!showCreate)
+            if (!showCreate) {
+              cancelEditing()
+            }
+          }}
           disabled={!hasBoundary}
           title={!hasBoundary ? 'Set a field boundary first' : undefined}
         >
@@ -410,11 +489,16 @@ export default function SamplingPlanPanel({
           </div>
 
           {previewPoints && (
-            <div className="mt-2">
-              <p className="text-xs text-brand-grey-1 mb-2">
+            <div className="mt-2 space-y-3">
+              <p className="text-xs text-brand-grey-1">
                 Generated {previewPoints.length} sample points ({strategy}).
-                Points will appear on the field map after saving.
+                Drag points on the map to adjust positions before saving.
               </p>
+              <SamplingPlanMapWrapper
+                boundary={boundary}
+                points={previewPoints}
+                onPointsChange={setPreviewPoints}
+              />
               <div className="max-h-40 overflow-y-auto text-xs font-mono bg-white rounded border border-brand-grey-2 p-2">
                 <table className="w-full">
                   <thead>
@@ -440,6 +524,64 @@ export default function SamplingPlanPanel({
         </div>
       )}
 
+      {/* Edit map for existing plan */}
+      {editingPlan && editedPoints && hasBoundary && (
+        <div className="mb-4 p-4 bg-purple-50 rounded-lg space-y-3 border border-purple-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm font-medium text-brand-black">
+                Editing: {editingPlan.name}
+              </span>
+              <span className="text-xs text-brand-grey-1 ml-2">
+                Drag points to reposition them
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {editModified && (
+                <Button size="sm" onClick={saveEditedPoints} disabled={editSaving}>
+                  <Save size={13} />
+                  {editSaving ? 'Saving...' : 'Save Points'}
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={cancelEditing}>
+                <X size={13} />
+                Close
+              </Button>
+              {editStatusMsg && (
+                <span className={`text-xs ${editStatusMsg.toLowerCase().includes('error') ? 'text-red-600' : 'text-green-600'}`}>
+                  {editStatusMsg}
+                </span>
+              )}
+            </div>
+          </div>
+          <SamplingPlanMapWrapper
+            boundary={boundary}
+            points={editedPoints}
+            onPointsChange={handleEditPointsChange}
+          />
+          <div className="max-h-32 overflow-y-auto text-xs font-mono bg-white rounded border border-brand-grey-2 p-2">
+            <table className="w-full">
+              <thead>
+                <tr className="text-brand-grey-1">
+                  <th className="text-left pr-4">Label</th>
+                  <th className="text-left pr-4">Lat</th>
+                  <th className="text-left">Lng</th>
+                </tr>
+              </thead>
+              <tbody>
+                {editedPoints.map((p, i) => (
+                  <tr key={i}>
+                    <td className="pr-4">{p.label}</td>
+                    <td className="pr-4">{p.lat}</td>
+                    <td>{p.lng}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {samplingPlans.length === 0 && !showCreate ? (
         <p className="text-sm text-brand-grey-1 text-center py-4">
           No sampling plans yet.
@@ -449,7 +591,11 @@ export default function SamplingPlanPanel({
           {samplingPlans.map((plan) => (
             <div
               key={plan.id}
-              className="flex items-center justify-between p-3 rounded-lg border border-brand-grey-2"
+              className={`flex items-center justify-between p-3 rounded-lg border ${
+                editingPlanId === plan.id
+                  ? 'border-purple-400 bg-purple-50'
+                  : 'border-brand-grey-2'
+              }`}
             >
               <div>
                 <span className="text-sm font-medium text-brand-black">{plan.name}</span>
@@ -460,6 +606,25 @@ export default function SamplingPlanPanel({
                 </div>
               </div>
               <div className="flex items-center gap-1">
+                {hasBoundary && (
+                  <button
+                    onClick={() => {
+                      if (editingPlanId === plan.id) {
+                        cancelEditing()
+                      } else {
+                        startEditing(plan)
+                      }
+                    }}
+                    className={`transition-colors p-1 ${
+                      editingPlanId === plan.id
+                        ? 'text-purple-600 hover:text-purple-800'
+                        : 'text-brand-grey-1 hover:text-brand-black'
+                    }`}
+                    title={editingPlanId === plan.id ? 'Close editor' : 'Edit points on map'}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
                 <button
                   onClick={() => exportCSV(plan)}
                   className="text-brand-grey-1 hover:text-brand-black transition-colors p-1"
