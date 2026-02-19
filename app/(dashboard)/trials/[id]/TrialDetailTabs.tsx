@@ -12,6 +12,8 @@ import TrialMap from '@/components/trials/TrialMapWrapper'
 import StatCard from '@/components/ui/StatCard'
 import EditableField from '@/components/trials/EditableField'
 import TrialFieldsPanel from '@/components/trials/TrialFieldsPanel'
+import WeatherTab from '@/components/weather/WeatherTab'
+import { parseGPS } from '@/lib/weather'
 import { createClient } from '@/lib/supabase/client'
 
 interface TrialDetailTabsProps {
@@ -28,7 +30,7 @@ interface TrialDetailTabsProps {
   supabaseUrl: string
 }
 
-const tabs = ['Summary', 'Treatments', 'Soil Health', 'Plot Data', 'Assay Results', 'Photos', 'Map', 'Fields', 'Management']
+const tabs = ['Summary', 'Treatments', 'Soil Health', 'Plot Data', 'Assay Results', 'Photos', 'Map', 'Weather', 'Fields', 'Management']
 
 // Hook to lazily fetch data from Supabase when a tab is first opened
 function useLazyTabData<T>(trialId: string, activeTab: string, triggerTab: string, fetcher: (supabase: any, trialId: string) => Promise<T>, initial?: T) {
@@ -72,6 +74,7 @@ export default function TrialDetailTabs({
   supabaseUrl,
 }: TrialDetailTabsProps) {
   const [activeTab, setActiveTab] = useState('Summary')
+  const parsedGps = parseGPS(trial.gps)
 
   // Keep a stable ref to linkedFields so fetchMapData doesn't get a new identity on re-render
   const linkedFieldsRef = useRef(linkedFields)
@@ -259,6 +262,16 @@ export default function TrialDetailTabs({
             />
           )}
         </div>
+      )}
+
+      {activeTab === 'Weather' && (
+        <WeatherTab
+          latitude={parsedGps?.[0] ?? null}
+          longitude={parsedGps?.[1] ?? null}
+          defaultStartDate={trial.planting_date}
+          defaultEndDate={trial.harvest_date}
+          locationLabel={trial.location}
+        />
       )}
 
       {activeTab === 'Fields' && (

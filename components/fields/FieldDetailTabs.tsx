@@ -1,13 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Map, FlaskConical, Grid3X3, Layers } from 'lucide-react'
+import { Map, FlaskConical, Grid3X3, Layers, CloudSun } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import FieldMapWrapper from './FieldMapWrapper'
 import FieldTrialsPanel from './FieldTrialsPanel'
 import FieldAnnotationsPanel from './FieldAnnotationsPanel'
 import SamplingPlanPanel from './SamplingPlanPanel'
 import FieldGISLayersPanel from './FieldGISLayersPanel'
+import WeatherTab from '@/components/weather/WeatherTab'
+import { getFieldCentroid, parseGPS } from '@/lib/weather'
 import type { FeatureCollection } from 'geojson'
 
 interface FieldDetailTabsProps {
@@ -32,6 +34,7 @@ interface FieldDetailTabsProps {
       status: string
       grower: string | null
       location: string | null
+      gps: string | null
     }
   }>
   annotations: Array<{
@@ -93,6 +96,7 @@ interface FieldDetailTabsProps {
 
 const tabs = [
   { key: 'map', label: 'Map', icon: Map },
+  { key: 'weather', label: 'Weather', icon: CloudSun },
   { key: 'trials', label: 'Trials', icon: FlaskConical },
   { key: 'layers', label: 'GIS Layers', icon: Layers },
   { key: 'sampling', label: 'Sampling Plans', icon: Grid3X3 },
@@ -111,6 +115,17 @@ export default function FieldDetailTabs({
   trialGisLayers = [],
 }: FieldDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('map')
+
+  // Compute weather coordinates: boundary centroid, or fallback to first linked trial GPS
+  const weatherCoords: [number, number] | null = (() => {
+    const centroid = getFieldCentroid(field.boundary)
+    if (centroid) return centroid
+    for (const ft of fieldTrials) {
+      const gps = parseGPS(ft.trials?.gps ?? null)
+      if (gps) return gps
+    }
+    return null
+  })()
 
   return (
     <div>
@@ -155,6 +170,14 @@ export default function FieldDetailTabs({
             annotations={annotations}
           />
         </div>
+      )}
+
+      {activeTab === 'weather' && (
+        <WeatherTab
+          latitude={weatherCoords?.[0] ?? null}
+          longitude={weatherCoords?.[1] ?? null}
+          locationLabel={field.name}
+        />
       )}
 
       {activeTab === 'trials' && (
