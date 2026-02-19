@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     formData = await request.formData()
   } catch (err: any) {
     console.error('Single upload init error:', err)
-    return NextResponse.json({ status: 'error', detail: err?.message || 'Failed to read upload data' }, { status: 400 })
+    return NextResponse.json({ status: 'error', detail: 'Failed to read upload data' }, { status: 400 })
   }
 
   const file = formData.get('file') as File | null
@@ -174,6 +174,6 @@ export async function POST(request: NextRequest) {
         detail: err?.message,
       })
     } catch (logErr) { console.error('upload_log insert failed:', logErr) }
-    return NextResponse.json({ status: 'error', detail: err?.message || 'Processing failed' })
+    return NextResponse.json({ status: 'error', detail: 'Processing failed. Please check the file format and try again.' })
   }
 }

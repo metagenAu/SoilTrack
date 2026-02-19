@@ -26,7 +26,8 @@ export async function GET() {
     .order('created_at')
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[GET /api/admin/users]', error.message)
+    return NextResponse.json({ error: 'Failed to load users' }, { status: 500 })
   }
 
   return NextResponse.json({ users: data })
@@ -72,7 +73,8 @@ export async function PATCH(request: NextRequest) {
     .eq('id', userId)
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[PATCH /api/admin/users]', error.message)
+    return NextResponse.json({ error: 'Failed to update role' }, { status: 500 })
   }
 
   return NextResponse.json({ status: 'success' })

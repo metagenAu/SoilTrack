@@ -1,10 +1,15 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { requireAuth, safeErrorResponse } from '@/lib/api-utils'
+import { canUpload, canModify } from '@/lib/auth'
 
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAuth()
+  if (!auth.authenticated) return auth.response
+
   const supabase = createServerSupabaseClient()
   const { data, error } = await supabase
     .from('field_sampling_plans')
@@ -12,7 +17,7 @@ export async function GET(
     .eq('field_id', params.id)
     .order('created_at', { ascending: false })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return safeErrorResponse(error, 'GET /api/fields/[id]/sampling-plans')
   return NextResponse.json(data)
 }
 
@@ -20,6 +25,12 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAuth()
+  if (!auth.authenticated) return auth.response
+  if (!canUpload(auth.role)) {
+    return NextResponse.json({ error: 'Upload permission required' }, { status: 403 })
+  }
+
   const supabase = createServerSupabaseClient()
   const body = await request.json()
 
@@ -44,13 +55,19 @@ export async function POST(
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return safeErrorResponse(error, 'POST /api/fields/[id]/sampling-plans')
   return NextResponse.json(data, { status: 201 })
 }
 
 export async function DELETE(
   request: Request,
 ) {
+  const auth = await requireAuth()
+  if (!auth.authenticated) return auth.response
+  if (!canModify(auth.role)) {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
+
   const supabase = createServerSupabaseClient()
   const { searchParams } = new URL(request.url)
   const planId = searchParams.get('plan_id')
@@ -64,6 +81,6 @@ export async function DELETE(
     .delete()
     .eq('id', planId)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return safeErrorResponse(error, 'DELETE /api/fields/[id]/sampling-plans')
   return NextResponse.json({ ok: true })
 }

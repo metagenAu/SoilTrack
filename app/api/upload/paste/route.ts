@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     body = await request.json()
   } catch (err: any) {
     console.error('Paste upload init error:', err)
-    return NextResponse.json({ status: 'error', detail: err?.message || 'Failed to read request data' }, { status: 400 })
+    return NextResponse.json({ status: 'error', detail: 'Failed to read request data' }, { status: 400 })
   }
 
   let { trialId, dataType, csvText, assayType } = body
@@ -87,6 +87,6 @@ export async function POST(request: NextRequest) {
         detail: err?.message,
       })
     } catch (logErr) { console.error('upload_log insert failed:', logErr) }
-    return NextResponse.json({ status: 'error', detail: err?.message || 'Import failed' })
+    return NextResponse.json({ status: 'error', detail: 'Import failed. Please check the data format and try again.' })
   }
 }

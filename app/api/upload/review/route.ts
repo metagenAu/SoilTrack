@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { reprocessRawUpload } from '@/lib/upload-pipeline'
 import { getUserRole, canUpload } from '@/lib/auth'
+import { requireAuth } from '@/lib/api-utils'
 
 export const maxDuration = 60
 
@@ -10,6 +11,9 @@ export const maxDuration = 60
  * Fetch a pending raw_upload so the UI can show unmapped columns for review.
  */
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.authenticated) return auth.response
+
   const supabase = createServerSupabaseClient()
   const rawUploadId = request.nextUrl.searchParams.get('id')
 
@@ -24,7 +28,7 @@ export async function GET(request: NextRequest) {
     .single()
 
   if (error || !data) {
-    return NextResponse.json({ error: error?.message || 'Not found' }, { status: 404 })
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   return NextResponse.json({ data })
