@@ -26,8 +26,9 @@ async function getFieldData(id: string) {
   const linkedTrialIds = fieldTrials.map((ft: any) => ft.trial_id).filter(Boolean)
   let trialSamples: any[] = []
   let trialGisLayers: any[] = []
+  let trialApplications: any[] = []
   if (linkedTrialIds.length > 0) {
-    const [samplesRes, tGisRes] = await Promise.all([
+    const [samplesRes, tGisRes, tAppsRes] = await Promise.all([
       supabase
         .from('soil_health_samples')
         .select('sample_no, latitude, longitude, property, block, trial_id')
@@ -40,9 +41,15 @@ async function getFieldData(id: string) {
         .select('*')
         .in('trial_id', linkedTrialIds)
         .order('created_at'),
+      supabase
+        .from('trial_applications')
+        .select('id, trial_id, name, trt_number, application_type, product, rate, geojson, style')
+        .in('trial_id', linkedTrialIds)
+        .order('created_at'),
     ])
     trialSamples = samplesRes.data || []
     trialGisLayers = tGisRes.data || []
+    trialApplications = tAppsRes.data || []
   }
 
   return {
@@ -55,6 +62,7 @@ async function getFieldData(id: string) {
     clients: clientsRes.data || [],
     trialSamples,
     trialGisLayers,
+    trialApplications,
   }
 }
 
@@ -67,7 +75,7 @@ export default async function FieldDetailPage({
 
   if (!data) notFound()
 
-  const { field, fieldTrials, annotations, samplingPlans, gisLayers, allTrials, clients, trialSamples, trialGisLayers } = data
+  const { field, fieldTrials, annotations, samplingPlans, gisLayers, allTrials, clients, trialSamples, trialGisLayers, trialApplications } = data
   const clientName = field.client_id
     ? clients.find((c) => c.id === field.client_id)?.name || null
     : null
@@ -119,6 +127,7 @@ export default async function FieldDetailPage({
         clients={clients}
         trialSamples={trialSamples}
         trialGisLayers={trialGisLayers}
+        trialApplications={trialApplications}
       />
     </div>
   )

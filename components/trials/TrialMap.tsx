@@ -99,6 +99,22 @@ interface FieldGISLayer {
   style: { color: string; weight: number; fillOpacity: number } | null
 }
 
+interface TrialApplicationLayer {
+  id: string
+  trial_id: string
+  name: string
+  trt_number: number | null
+  application_type: string | null
+  product: string | null
+  rate: string | null
+  date_applied: string | null
+  geojson: FeatureCollection
+  geojson_source: string | null
+  feature_count: number
+  style: { color: string; weight: number; fillOpacity: number } | null
+  notes: string | null
+}
+
 interface TrialMapProps {
   trial: { id: string; gps: string | null; name: string }
   samples: SamplePoint[]
@@ -107,6 +123,7 @@ interface TrialMapProps {
   soilChemistry?: SoilChemistryRow[]
   linkedFields?: LinkedField[]
   fieldGisLayers?: FieldGISLayer[]
+  applications?: TrialApplicationLayer[]
   supabaseUrl: string
 }
 
@@ -591,6 +608,9 @@ function MetricLegend({ label, min, max, unit }: { label: string; min: number; m
 
 // ---------- Main Component ----------
 
+// Application zone colours — amber/orange palette, visually distinct from GIS layers
+const APP_ZONE_COLORS = ['#f59e0b', '#d97706', '#b45309', '#92400e', '#78350f', '#ea580c', '#c2410c', '#9a3412']
+
 export default function TrialMap({
   trial,
   samples,
@@ -599,6 +619,7 @@ export default function TrialMap({
   soilChemistry = [],
   linkedFields = [],
   fieldGisLayers: initialFieldGisLayers = [],
+  applications: initialApplications = [],
   supabaseUrl,
 }: TrialMapProps) {
   const [gisLayers, setGisLayers] = useState(initialLayers)
@@ -650,6 +671,16 @@ export default function TrialMap({
         .map((l) => ({ ...l, geojson: sanitizeFeatures(l.geojson) }))
         .filter((l) => l.geojson.features?.length > 0),
     [initialFieldGisLayers]
+  )
+
+  // Sanitise application zone layers
+  const sanitizedApplications = useMemo(
+    () =>
+      initialApplications
+        .filter((a) => a.geojson && a.geojson.type === 'FeatureCollection')
+        .map((a) => ({ ...a, geojson: sanitizeFeatures(a.geojson) }))
+        .filter((a) => a.geojson.features?.length > 0),
+    [initialApplications]
   )
 
   // Discover available numeric metrics from all data sources
@@ -734,8 +765,9 @@ export default function TrialMap({
       ...sanitizedGisLayers.map((l) => l.geojson),
       ...fieldBoundaries.map((fb) => fb.boundary),
       ...sanitizedFieldGisLayers.map((l) => l.geojson),
+      ...sanitizedApplications.map((a) => a.geojson),
     ],
-    [sanitizedGisLayers, fieldBoundaries, sanitizedFieldGisLayers]
+    [sanitizedGisLayers, fieldBoundaries, sanitizedFieldGisLayers, sanitizedApplications]
   )
 
   // Compute metric overlay data when a metric is active
@@ -1074,7 +1106,7 @@ export default function TrialMap({
 
   // ---------- Render ----------
 
-  const totalLayers = sanitizedGisLayers.length + customLayers.length + fieldBoundaries.length + sanitizedFieldGisLayers.length
+  const totalLayers = sanitizedGisLayers.length + customLayers.length + fieldBoundaries.length + sanitizedFieldGisLayers.length + sanitizedApplications.length
 
   return (
     <div>
@@ -1387,6 +1419,46 @@ export default function TrialMap({
               )
             })}
 
+            {/* Application zones — distinctive amber/orange dashed style */}
+            {sanitizedApplications.map((app, idx) => {
+              const color = app.style?.color || APP_ZONE_COLORS[idx % APP_ZONE_COLORS.length]
+              const label = app.trt_number != null
+                ? `App: ${app.name} (Trt ${app.trt_number})`
+                : `App: ${app.name}`
+              return (
+                <LayersControl.Overlay checked key={`app-${app.id}`} name={label}>
+                  <GeoJSON
+                    key={`app-${app.id}`}
+                    data={app.geojson}
+                    style={{
+                      color,
+                      weight: app.style?.weight ?? 2.5,
+                      fillOpacity: app.style?.fillOpacity ?? 0.25,
+                      fillColor: color,
+                      dashArray: '6, 4',
+                    }}
+                    onEachFeature={(feature, leafletLayer) => {
+                      const parts: string[] = [`<b>${escapeHtml(app.name)}</b>`]
+                      if (app.application_type) parts.push(`Type: ${escapeHtml(app.application_type)}`)
+                      if (app.product) parts.push(`Product: ${escapeHtml(app.product)}`)
+                      if (app.rate) parts.push(`Rate: ${escapeHtml(app.rate)}`)
+                      if (app.trt_number != null) parts.push(`Treatment: ${app.trt_number}`)
+                      if (app.date_applied) parts.push(`Applied: ${escapeHtml(app.date_applied)}`)
+                      // Also show feature properties if present
+                      const props = feature.properties
+                      if (props && Object.keys(props).length > 0) {
+                        const propHtml = Object.entries(props)
+                          .filter(([, v]) => v != null && v !== '')
+                          .map(([k, v]) => `${escapeHtml(String(k))}: ${escapeHtml(String(v))}`)
+                        parts.push(...propHtml)
+                      }
+                      leafletLayer.bindPopup(`<div class="text-xs">${parts.join('<br/>')}</div>`)
+                    }}
+                  />
+                </LayersControl.Overlay>
+              )
+            })}
+
             {/* Metric overlay (color-coded points) — skip for GIS metrics since the layer itself is color-coded */}
             {metricLayerData && selectedMetric && selectedMetric.source !== 'gis' && (
               <LayersControl.Overlay checked name={`${selectedMetric.label.slice(0, 30)} (metric)`}>
@@ -1475,7 +1547,7 @@ export default function TrialMap({
       </div>
 
       {/* Layer list */}
-      {(sanitizedGisLayers.length > 0 || customLayers.length > 0 || fieldBoundaries.length > 0 || sanitizedFieldGisLayers.length > 0) && (
+      {(sanitizedGisLayers.length > 0 || customLayers.length > 0 || fieldBoundaries.length > 0 || sanitizedFieldGisLayers.length > 0 || sanitizedApplications.length > 0) && (
         <div className="mt-4">
           <p className="signpost-label mb-2">LAYERS</p>
           <div className="space-y-2">
@@ -1615,6 +1687,30 @@ export default function TrialMap({
                       <p className="text-sm font-medium">{layer.name}</p>
                       <p className="text-xs text-brand-grey-1">
                         Field GIS &middot; {layer.file_type.toUpperCase()} &middot; {layer.feature_count} feature{layer.feature_count !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Application zones */}
+            {sanitizedApplications.map((app, idx) => {
+              const color = app.style?.color || APP_ZONE_COLORS[idx % APP_ZONE_COLORS.length]
+              return (
+                <div
+                  key={`app-${app.id}`}
+                  className="flex items-center justify-between p-3 rounded-lg border border-amber-200 bg-amber-50/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+                    <div>
+                      <p className="text-sm font-medium">{app.name}</p>
+                      <p className="text-xs text-brand-grey-1">
+                        Application{app.application_type ? ` \u00b7 ${app.application_type}` : ''}
+                        {app.product ? ` \u00b7 ${app.product}` : ''}
+                        {app.rate ? ` \u00b7 ${app.rate}` : ''}
+                        {app.trt_number != null ? ` \u00b7 Trt ${app.trt_number}` : ''}
                       </p>
                     </div>
                   </div>
