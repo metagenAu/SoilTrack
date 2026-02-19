@@ -8,7 +8,7 @@ import 'leaflet-draw/dist/leaflet.draw.css'
 import { Upload, Pencil, Trash2, Save } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { parseGISFile, detectGISFileType, GIS_ACCEPT } from '@/lib/parsers/gis'
-import type { FeatureCollection, Feature, Geometry } from 'geojson'
+import type { FeatureCollection, Feature } from 'geojson'
 
 // Fix default marker icon URLs (Webpack bundler issue)
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -16,6 +16,14 @@ L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+})
+
+// Custom icon for draggable vertex markers
+const vertexIcon = L.divIcon({
+  className: 'field-vertex-marker',
+  html: '<div style="width:12px;height:12px;background:#22c55e;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.3);cursor:grab;"></div>',
+  iconSize: [12, 12],
+  iconAnchor: [6, 6],
 })
 
 interface FieldMapProps {
@@ -53,6 +61,7 @@ export default function FieldMap({
   const mapRef = useRef<L.Map | null>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const boundaryLayerRef = useRef<L.FeatureGroup>(new L.FeatureGroup())
+  const vertexMarkersRef = useRef<L.FeatureGroup>(new L.FeatureGroup())
   const drawControlRef = useRef<L.Control.Draw | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -61,6 +70,7 @@ export default function FieldMap({
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
   const [statusMsg, setStatusMsg] = useState<string | null>(null)
+  const [boundaryModified, setBoundaryModified] = useState(false)
 
   // Calculate area from boundary GeoJSON (approximate using Leaflet)
   const calcArea = useCallback((layer: L.Layer): number | null => {
@@ -75,6 +85,72 @@ export default function FieldMap({
       }
     }
     return null
+  }, [])
+
+  // Add draggable vertex markers for all boundary polygons
+  const addVertexMarkers = useCallback(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    // Clear existing vertex markers
+    vertexMarkersRef.current.clearLayers()
+
+    const polygonLayers: L.Polygon[] = []
+    boundaryLayerRef.current.eachLayer((layer) => {
+      if (layer instanceof L.Polygon) {
+        polygonLayers.push(layer)
+      }
+    })
+
+    for (const polygon of polygonLayers) {
+      // getLatLngs() returns LatLng[][] for polygons (outer ring + optional holes)
+      const rings = polygon.getLatLngs() as L.LatLng[][]
+
+      for (let ringIdx = 0; ringIdx < rings.length; ringIdx++) {
+        const ring = rings[ringIdx]
+        for (let vertIdx = 0; vertIdx < ring.length; vertIdx++) {
+          const latlng = ring[vertIdx]
+
+          const marker = L.marker(latlng, {
+            icon: vertexIcon,
+            draggable: true,
+            title: `Point ${vertIdx + 1}`,
+          })
+
+          // Store references for the drag handler
+          ;(marker as any)._vtx = { polygon, ringIdx, vertIdx }
+
+          marker.on('drag', (e: L.LeafletEvent) => {
+            const m = e.target as L.Marker
+            const vtx = (m as any)._vtx as { polygon: L.Polygon; ringIdx: number; vertIdx: number }
+            const newLatLng = m.getLatLng()
+
+            // Update the polygon vertex
+            const currentRings = vtx.polygon.getLatLngs() as L.LatLng[][]
+            currentRings[vtx.ringIdx][vtx.vertIdx] = newLatLng
+            vtx.polygon.setLatLngs(currentRings)
+          })
+
+          marker.on('dragend', () => {
+            setBoundaryModified(true)
+          })
+
+          marker.bindTooltip(`Point ${vertIdx + 1}`, { permanent: false, direction: 'top', offset: [0, -8] })
+
+          vertexMarkersRef.current.addLayer(marker)
+        }
+      }
+    }
+
+    vertexMarkersRef.current.addTo(map)
+  }, [])
+
+  // Remove vertex markers from map
+  const removeVertexMarkers = useCallback(() => {
+    vertexMarkersRef.current.clearLayers()
+    if (mapRef.current && mapRef.current.hasLayer(vertexMarkersRef.current)) {
+      mapRef.current.removeLayer(vertexMarkersRef.current)
+    }
   }, [])
 
   // Initialize map
@@ -185,10 +261,25 @@ export default function FieldMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Add vertex markers after map initializes (and when boundary exists)
+  useEffect(() => {
+    if (!mapRef.current) return
+    if (hasBoundary && !isDrawing) {
+      // Small delay to ensure boundary layers are rendered
+      const timer = setTimeout(() => addVertexMarkers(), 100)
+      return () => clearTimeout(timer)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasBoundary, isDrawing])
+
   // Enable drawing mode
   function startDrawing() {
     const map = mapRef.current
     if (!map) return
+
+    // Remove vertex markers during draw mode
+    removeVertexMarkers()
+    setBoundaryModified(false)
 
     // Clear existing boundary for redraw
     boundaryLayerRef.current.clearLayers()
@@ -238,9 +329,14 @@ export default function FieldMap({
     map.off(L.Draw.Event.CREATED)
     map.off(L.Draw.Event.DELETED)
     setIsDrawing(false)
+
+    // Restore vertex markers if boundary exists
+    if (boundaryLayerRef.current.getLayers().length > 0) {
+      addVertexMarkers()
+    }
   }
 
-  // Save boundary to DB
+  // Save boundary to DB (used for both draw mode and drag edits)
   async function saveBoundary() {
     const layers = boundaryLayerRef.current.getLayers()
     if (layers.length === 0) return
@@ -271,14 +367,17 @@ export default function FieldMap({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           boundary: fc,
-          boundary_source: 'drawn',
+          boundary_source: boundarySource || 'drawn',
           area_ha,
         }),
       })
 
       if (!res.ok) throw new Error('Failed to save boundary')
 
-      stopDrawing()
+      if (isDrawing) {
+        stopDrawing()
+      }
+      setBoundaryModified(false)
       setStatusMsg('Boundary saved')
       setTimeout(() => setStatusMsg(null), 3000)
     } catch {
@@ -352,13 +451,18 @@ export default function FieldMap({
       }
 
       // Save succeeded — now render on map
+      removeVertexMarkers()
       boundaryLayerRef.current.clearLayers()
       tempGroup.eachLayer((l) => boundaryLayerRef.current.addLayer(l))
       setHasBoundary(true)
+      setBoundaryModified(false)
 
       if (mapRef.current) {
         mapRef.current.fitBounds(boundaryLayerRef.current.getBounds().pad(0.1))
       }
+
+      // Re-add vertex markers for the new boundary
+      addVertexMarkers()
 
       setStatusMsg(`Imported ${polygonFeatures.length} polygon(s) from ${file.name}`)
       setTimeout(() => setStatusMsg(null), 5000)
@@ -383,8 +487,10 @@ export default function FieldMap({
       })
       if (!res.ok) throw new Error('Failed to clear boundary')
 
+      removeVertexMarkers()
       boundaryLayerRef.current.clearLayers()
       setHasBoundary(false)
+      setBoundaryModified(false)
       stopDrawing()
       setStatusMsg('Boundary removed')
       setTimeout(() => setStatusMsg(null), 3000)
@@ -398,7 +504,7 @@ export default function FieldMap({
   return (
     <div className="card">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
         <span className="text-xs font-medium text-brand-grey-1 mr-2">Boundary:</span>
 
         {isDrawing ? (
@@ -441,6 +547,12 @@ export default function FieldMap({
                 Clear
               </Button>
             )}
+            {boundaryModified && (
+              <Button size="sm" onClick={saveBoundary} disabled={saving}>
+                <Save size={13} />
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            )}
           </>
         )}
 
@@ -461,6 +573,11 @@ export default function FieldMap({
         <p className="text-xs text-brand-grey-1 mt-2">
           Click on the map to place vertices. Click the first vertex to close the polygon.
           Use the toolbar controls in the top-left to draw, edit, or delete shapes.
+        </p>
+      )}
+      {hasBoundary && !isDrawing && (
+        <p className="text-xs text-brand-grey-1 mt-2">
+          Drag the green points to adjust the boundary. Click &ldquo;Save Changes&rdquo; to persist your edits.
         </p>
       )}
     </div>
