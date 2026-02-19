@@ -331,6 +331,123 @@ function idwInterpolate(
   return valueSum / weightSum
 }
 
+/** Nearest-neighbor pixel grid overlay — discrete colored blocks like JD Ops Center */
+function PixelGridOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max: number }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (points.length < 1) return
+
+    // Compute max render distance: 1.5x the average nearest-neighbor distance.
+    // This prevents the grid from colouring areas far from any data point.
+    let avgNN = 0
+    for (const p of points) {
+      let minDist = Infinity
+      for (const q of points) {
+        if (p === q) continue
+        const d = Math.sqrt((p.lat - q.lat) ** 2 + (p.lng - q.lng) ** 2)
+        if (d < minDist) minDist = d
+      }
+      if (minDist < Infinity) avgNN += minDist
+    }
+    avgNN /= points.length
+    const maxDist = avgNN * 1.5
+
+    const CanvasOverlay = L.Layer.extend({
+      onAdd(map: L.Map) {
+        this._map = map
+        this._canvas = L.DomUtil.create('canvas', 'leaflet-layer') as HTMLCanvasElement
+        this._canvas.style.position = 'absolute'
+        this._canvas.style.pointerEvents = 'none'
+        this._canvas.style.imageRendering = 'pixelated'
+        const pane = map.getPane('overlayPane')
+        if (pane) pane.appendChild(this._canvas)
+
+        map.on('moveend zoomend resize', this._redraw, this)
+        this._redraw()
+      },
+
+      onRemove(map: L.Map) {
+        if (this._canvas.parentNode) {
+          this._canvas.parentNode.removeChild(this._canvas)
+        }
+        map.off('moveend zoomend resize', this._redraw, this)
+      },
+
+      _redraw() {
+        const map = this._map
+        const canvas = this._canvas as HTMLCanvasElement
+        const size = map.getSize()
+        const topLeft = map.containerPointToLayerPoint([0, 0])
+
+        L.DomUtil.setPosition(canvas, topLeft)
+        canvas.width = size.x
+        canvas.height = size.y
+
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+
+        ctx.imageSmoothingEnabled = false
+
+        const GRID = 10 // pixel step — visible square blocks
+        const imageData = ctx.createImageData(size.x, size.y)
+
+        const bounds = map.getBounds()
+        const nearby = points.filter(p => bounds.contains([p.lat, p.lng]))
+        if (nearby.length < 1) {
+          ctx.clearRect(0, 0, size.x, size.y)
+          return
+        }
+
+        for (let y = 0; y < size.y; y += GRID) {
+          for (let x = 0; x < size.x; x += GRID) {
+            const containerPoint = L.point(x, y).add(topLeft)
+            const latlng = map.layerPointToLatLng(containerPoint)
+
+            // Find nearest data point (no interpolation)
+            let nearestDist = Infinity
+            let nearestVal = 0
+            for (const p of nearby) {
+              const d = Math.sqrt((p.lat - latlng.lat) ** 2 + (p.lng - latlng.lng) ** 2)
+              if (d < nearestDist) {
+                nearestDist = d
+                nearestVal = p.value
+              }
+            }
+
+            // Only render cells within max distance of a data point
+            if (nearestDist > maxDist) continue
+
+            const [r, g, b, a] = metricColorRGBA(nearestVal, min, max, 0.65)
+
+            // Fill the grid cell
+            for (let dy = 0; dy < GRID && y + dy < size.y; dy++) {
+              for (let dx = 0; dx < GRID && x + dx < size.x; dx++) {
+                const idx = ((y + dy) * size.x + (x + dx)) * 4
+                imageData.data[idx] = r
+                imageData.data[idx + 1] = g
+                imageData.data[idx + 2] = b
+                imageData.data[idx + 3] = a
+              }
+            }
+          }
+        }
+
+        ctx.putImageData(imageData, 0, 0)
+      },
+    })
+
+    const overlay = new CanvasOverlay()
+    overlay.addTo(map)
+
+    return () => {
+      overlay.remove()
+    }
+  }, [map, points, min, max])
+
+  return null
+}
+
 /** Leaflet overlay that renders IDW-interpolated heatmap on a canvas */
 function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max: number }) {
   const map = useMap()
@@ -1044,7 +1161,7 @@ export default function TrialMap({
             </div>
           )}
 
-          {/* Interpolation toggle */}
+          {/* Interpolation toggle — switches between pixel grid (default) and smooth IDW */}
           {metricLayerData && metricLayerData.points.length >= 3 && (
             <button
               onClick={() => setShowInterpolation(v => !v)}
@@ -1053,10 +1170,10 @@ export default function TrialMap({
                   ? 'bg-brand-black text-white border-brand-black'
                   : 'bg-white text-brand-black border-brand-grey-2 hover:border-brand-black'
               }`}
-              title="Toggle IDW interpolation heatmap"
+              title={showInterpolation ? 'Switch to pixel grid' : 'Switch to smooth interpolation'}
             >
               <Grid3X3 size={14} />
-              Interpolate
+              {showInterpolation ? 'Smooth' : 'Interpolate'}
             </button>
           )}
 
@@ -1333,13 +1450,21 @@ export default function TrialMap({
             ))}
           </LayersControl>
 
-          {/* IDW interpolation heatmap overlay */}
-          {showInterpolation && metricLayerData && metricLayerData.points.length >= 3 && (
-            <IDWOverlay
-              points={metricLayerData.points.map(p => ({ lat: p.lat, lng: p.lng, value: p.value }))}
-              min={metricLayerData.min}
-              max={metricLayerData.max}
-            />
+          {/* Pixel grid / IDW overlay when a metric is active */}
+          {metricLayerData && metricLayerData.points.length >= 3 && (
+            showInterpolation ? (
+              <IDWOverlay
+                points={metricLayerData.points.map(p => ({ lat: p.lat, lng: p.lng, value: p.value }))}
+                min={metricLayerData.min}
+                max={metricLayerData.max}
+              />
+            ) : (
+              <PixelGridOverlay
+                points={metricLayerData.points.map(p => ({ lat: p.lat, lng: p.lng, value: p.value }))}
+                min={metricLayerData.min}
+                max={metricLayerData.max}
+              />
+            )
           )}
 
           <FitBounds points={allPoints} geoJsonLayers={allGeoJsons} />
