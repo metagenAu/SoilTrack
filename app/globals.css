@@ -8,19 +8,6 @@
   }
 }
 
-/* Pixelated rendering for map data layers — discrete grid cells like JD Ops Center */
-.leaflet-overlay-pane canvas {
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-}
-
-.leaflet-image-layer {
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-}
-
 @layer components {
   .signpost-label {
     @apply text-[11px] uppercase tracking-[1.2px] font-semibold text-brand-grey-1;

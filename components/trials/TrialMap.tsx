@@ -370,7 +370,6 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
         this._canvas = L.DomUtil.create('canvas', 'leaflet-layer') as HTMLCanvasElement
         this._canvas.style.position = 'absolute'
         this._canvas.style.pointerEvents = 'none'
-        this._canvas.style.imageRendering = 'pixelated'
         const pane = map.getPane('overlayPane')
         if (pane) pane.appendChild(this._canvas)
 
@@ -398,10 +397,9 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
         const ctx = canvas.getContext('2d')
         if (!ctx) return
 
-        ctx.imageSmoothingEnabled = false
-
-        const GRID = 8 // pixel step — larger blocks for discrete pixel look
-        const imageData = ctx.createImageData(size.x, size.y)
+        const STEP = 4 // compute IDW every STEP pixels
+        const smallW = Math.ceil(size.x / STEP)
+        const smallH = Math.ceil(size.y / STEP)
 
         // Compute bounds padding (extend slightly beyond viewport)
         const bounds = map.getBounds()
@@ -420,27 +418,36 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
           return
         }
 
-        for (let y = 0; y < size.y; y += GRID) {
-          for (let x = 0; x < size.x; x += GRID) {
-            const containerPoint = L.point(x, y).add(topLeft)
+        // Render IDW at reduced resolution on an offscreen canvas
+        const offscreen = document.createElement('canvas')
+        offscreen.width = smallW
+        offscreen.height = smallH
+        const offCtx = offscreen.getContext('2d')
+        if (!offCtx) return
+
+        const imageData = offCtx.createImageData(smallW, smallH)
+
+        for (let sy = 0; sy < smallH; sy++) {
+          for (let sx = 0; sx < smallW; sx++) {
+            const containerPoint = L.point(sx * STEP, sy * STEP).add(topLeft)
             const latlng = map.layerPointToLatLng(containerPoint)
             const val = idwInterpolate(nearby, latlng.lat, latlng.lng)
             const [r, g, b, a] = metricColorRGBA(val, min, max, 0.45)
 
-            // Fill the grid cell
-            for (let dy = 0; dy < GRID && y + dy < size.y; dy++) {
-              for (let dx = 0; dx < GRID && x + dx < size.x; dx++) {
-                const idx = ((y + dy) * size.x + (x + dx)) * 4
-                imageData.data[idx] = r
-                imageData.data[idx + 1] = g
-                imageData.data[idx + 2] = b
-                imageData.data[idx + 3] = a
-              }
-            }
+            const idx = (sy * smallW + sx) * 4
+            imageData.data[idx] = r
+            imageData.data[idx + 1] = g
+            imageData.data[idx + 2] = b
+            imageData.data[idx + 3] = a
           }
         }
 
-        ctx.putImageData(imageData, 0, 0)
+        offCtx.putImageData(imageData, 0, 0)
+
+        // Scale up with bilinear interpolation for smooth gradients
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'high'
+        ctx.drawImage(offscreen, 0, 0, size.x, size.y)
       },
     })
 
@@ -499,7 +506,7 @@ function HeatmapLayer({ points }: { points: [number, number][] }) {
       points.map(([lat, lng]) => [lat, lng] as L.HeatLatLngTuple),
       {
         radius: 18,
-        blur: 1,
+        blur: 25,
         maxZoom: 17,
         minOpacity: 0.35,
         gradient: {
