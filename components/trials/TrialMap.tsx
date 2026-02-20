@@ -22,8 +22,6 @@ function escapeHtml(str: string): string {
 const MAX_FILE_SIZE_MB = 50
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024
 
-/** Point count threshold: above this, GIS point layers render as a heatmap */
-const HEATMAP_POINT_THRESHOLD = 500
 
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.heat'
@@ -754,10 +752,8 @@ export default function TrialMap({
   function shouldShowHeatmap(layerId: string): boolean {
     const override = heatmapOverrides[layerId]
     if (override !== undefined) return override
-    // Auto: heatmap when it's a point layer above threshold
-    const data = gisLayerPointData.get(layerId)
-    if (!data) return false
-    return data.isPointLayer && data.coords.length >= HEATMAP_POINT_THRESHOLD
+    // Default to polygon/boundary rendering — users can opt-in to heatmap via toggle
+    return false
   }
 
   const allGeoJsons = useMemo(
