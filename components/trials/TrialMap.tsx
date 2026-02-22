@@ -487,6 +487,40 @@ function IDWOverlay({ points, min, max, boundary }: {
           return
         }
 
+        // Determine clip rings: use field boundary if provided, else convex hull of points
+        let clipRings: [number, number][][] = []
+        if (boundary && boundary.features?.length) {
+          clipRings = extractPolygonRings(boundary)
+        }
+        if (clipRings.length === 0) {
+          // Fallback: convex hull of data points with a small buffer
+          const hull = computeConvexHull(points)
+          if (hull.length >= 3) {
+            clipRings = [bufferHull(hull, 0.05)]
+          }
+        }
+
+        // Compute pixel-space bounding box of clip region to skip IDW outside it
+        let clipMinSx = 0, clipMaxSx = smallW, clipMinSy = 0, clipMaxSy = smallH
+        if (clipRings.length > 0) {
+          let pxMinX = Infinity, pxMaxX = -Infinity, pxMinY = Infinity, pxMaxY = -Infinity
+          for (const ring of clipRings) {
+            for (const [lng, lat] of ring) {
+              const lp = map.latLngToLayerPoint([lat, lng])
+              const px = lp.x - topLeft.x
+              const py = lp.y - topLeft.y
+              if (px < pxMinX) pxMinX = px
+              if (px > pxMaxX) pxMaxX = px
+              if (py < pxMinY) pxMinY = py
+              if (py > pxMaxY) pxMaxY = py
+            }
+          }
+          clipMinSx = Math.max(0, Math.floor(pxMinX / STEP))
+          clipMaxSx = Math.min(smallW, Math.ceil(pxMaxX / STEP) + 1)
+          clipMinSy = Math.max(0, Math.floor(pxMinY / STEP))
+          clipMaxSy = Math.min(smallH, Math.ceil(pxMaxY / STEP) + 1)
+        }
+
         // Render IDW at reduced resolution on an offscreen canvas
         const offscreen = document.createElement('canvas')
         offscreen.width = smallW
@@ -496,8 +530,8 @@ function IDWOverlay({ points, min, max, boundary }: {
 
         const imageData = offCtx.createImageData(smallW, smallH)
 
-        for (let sy = 0; sy < smallH; sy++) {
-          for (let sx = 0; sx < smallW; sx++) {
+        for (let sy = clipMinSy; sy < clipMaxSy; sy++) {
+          for (let sx = clipMinSx; sx < clipMaxSx; sx++) {
             const containerPoint = L.point(sx * STEP, sy * STEP).add(topLeft)
             const latlng = map.layerPointToLatLng(containerPoint)
             const val = idwInterpolate(nearby, latlng.lat, latlng.lng)
@@ -513,19 +547,6 @@ function IDWOverlay({ points, min, max, boundary }: {
 
         offCtx.putImageData(imageData, 0, 0)
 
-        // Determine clip rings: use field boundary if provided, else convex hull of points
-        let clipRings: [number, number][][] = []
-        if (boundary && boundary.features?.length) {
-          clipRings = extractPolygonRings(boundary)
-        }
-        if (clipRings.length === 0) {
-          // Fallback: convex hull of data points with a small buffer
-          const hull = computeConvexHull(points)
-          if (hull.length >= 3) {
-            clipRings = [bufferHull(hull, 0.05)]
-          }
-        }
-
         // Apply clip path and draw the interpolation
         if (clipRings.length > 0) {
           ctx.save()
@@ -534,10 +555,10 @@ function IDWOverlay({ points, min, max, boundary }: {
             for (let i = 0; i < ring.length; i++) {
               const [lng, lat] = ring[i]
               const lp = map.latLngToLayerPoint([lat, lng])
-              const cx = lp.x - topLeft.x
-              const cy = lp.y - topLeft.y
-              if (i === 0) ctx.moveTo(cx, cy)
-              else ctx.lineTo(cx, cy)
+              const bx = lp.x - topLeft.x
+              const by = lp.y - topLeft.y
+              if (i === 0) ctx.moveTo(bx, by)
+              else ctx.lineTo(bx, by)
             }
             ctx.closePath()
           }
