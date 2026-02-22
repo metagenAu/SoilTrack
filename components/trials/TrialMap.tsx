@@ -412,7 +412,7 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
         const ctx = canvas.getContext('2d')
         if (!ctx) return
 
-        const STEP = 3 // compute IDW every STEP pixels (lower = smoother)
+        const STEP = 2 // compute IDW every 2px for yield-map smoothness
         const smallW = Math.ceil(size.x / STEP)
         const smallH = Math.ceil(size.y / STEP)
 
@@ -447,7 +447,7 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
             const containerPoint = L.point(sx * STEP, sy * STEP).add(topLeft)
             const latlng = map.layerPointToLatLng(containerPoint)
             const val = idwInterpolate(nearby, latlng.lat, latlng.lng)
-            const [r, g, b, a] = metricColorRGBA(val, min, max, 0.55)
+            const [r, g, b, a] = metricColorRGBA(val, min, max, 0.8)
 
             const idx = (sy * smallW + sx) * 4
             imageData.data[idx] = r
@@ -545,14 +545,15 @@ function HeatmapLayer({ points }: { points: [number, number][] }) {
   return null
 }
 
-// ---------- Smooth point overlay ----------
+// ---------- Yield-map style point overlay ----------
 
 /**
- * Canvas-based point layer that renders all points as soft circles on a single
- * canvas, producing a smooth continuous appearance when points are dense.
- * Falls back to standard CircleMarkers for interactivity (popups).
+ * Canvas-based point layer that renders solid, opaque filled circles — similar
+ * to a John Deere yield map display.  Each point fills its surrounding area so
+ * that adjacent points overlap into a continuous coloured surface.  A tiny
+ * feather on the edge prevents hard aliasing.
  */
-function SoftPointOverlay({ points, color, opacity = 0.55 }: {
+function SolidPointOverlay({ points, color, opacity = 0.85 }: {
   points: { lat: number; lng: number }[]
   color: string
   opacity?: number
@@ -562,7 +563,6 @@ function SoftPointOverlay({ points, color, opacity = 0.55 }: {
   useEffect(() => {
     if (points.length === 0) return
 
-    // Parse hex color to RGB
     const r = parseInt(color.slice(1, 3), 16)
     const g = parseInt(color.slice(3, 5), 16)
     const b = parseInt(color.slice(5, 7), 16)
@@ -599,11 +599,15 @@ function SoftPointOverlay({ points, color, opacity = 0.55 }: {
         ctx.clearRect(0, 0, size.x, size.y)
 
         const zoom = map.getZoom()
-        // Radius in pixels: grows with zoom so points merge into continuous patches
-        const radius = Math.max(4, Math.round(6 * Math.pow(1.2, zoom - 14)))
-        const blur = Math.max(2, radius * 0.6)
+        // Solid radius — large enough to fill gaps between neighbouring points.
+        // At zoom 14 ~8px, grows at higher zooms so the swath stays proportional.
+        const radius = Math.max(5, Math.round(8 * Math.pow(1.25, zoom - 14)))
+        // Tiny 2px feather on the edge to avoid hard aliasing
+        const feather = 2
 
         const bounds = map.getBounds()
+
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`
 
         for (const p of points) {
           if (!bounds.contains([p.lat, p.lng])) continue
@@ -611,15 +615,22 @@ function SoftPointOverlay({ points, color, opacity = 0.55 }: {
           const x = px.x - topLeft.x
           const y = px.y - topLeft.y
 
-          // Draw a radial gradient circle for soft appearance
-          const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius + blur)
-          gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${opacity})`)
-          gradient.addColorStop(0.6, `rgba(${r}, ${g}, ${b}, ${opacity * 0.6})`)
-          gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`)
-          ctx.fillStyle = gradient
+          // Solid core circle
           ctx.beginPath()
-          ctx.arc(x, y, radius + blur, 0, Math.PI * 2)
+          ctx.arc(x, y, radius, 0, Math.PI * 2)
           ctx.fill()
+
+          // Thin feathered edge for anti-aliasing
+          const grad = ctx.createRadialGradient(x, y, radius, x, y, radius + feather)
+          grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${opacity})`)
+          grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`)
+          ctx.fillStyle = grad
+          ctx.beginPath()
+          ctx.arc(x, y, radius + feather, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Reset fill for next point
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`
         }
       },
     })
@@ -628,6 +639,92 @@ function SoftPointOverlay({ points, color, opacity = 0.55 }: {
     overlay.addTo(map)
     return () => { overlay.remove() }
   }, [map, points, color, opacity])
+
+  return null
+}
+
+/**
+ * Yield-map style overlay for metric-coloured points.  Each point is drawn
+ * as a solid filled circle coloured by its metric value, producing the dense
+ * pixel-map look of precision ag displays.
+ */
+function MetricPointOverlay({ points, min, max, opacity = 0.88 }: {
+  points: { lat: number; lng: number; value: number }[]
+  min: number
+  max: number
+  opacity?: number
+}) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (points.length === 0) return
+
+    const CanvasOverlay = L.Layer.extend({
+      onAdd(map: L.Map) {
+        this._map = map
+        this._canvas = L.DomUtil.create('canvas', 'leaflet-layer') as HTMLCanvasElement
+        this._canvas.style.position = 'absolute'
+        this._canvas.style.pointerEvents = 'none'
+        const pane = map.getPane('overlayPane')
+        if (pane) pane.appendChild(this._canvas)
+        map.on('moveend zoomend resize', this._redraw, this)
+        this._redraw()
+      },
+
+      onRemove(map: L.Map) {
+        if (this._canvas.parentNode) this._canvas.parentNode.removeChild(this._canvas)
+        map.off('moveend zoomend resize', this._redraw, this)
+      },
+
+      _redraw() {
+        const map = this._map
+        const canvas = this._canvas as HTMLCanvasElement
+        const size = map.getSize()
+        const topLeft = map.containerPointToLayerPoint([0, 0])
+
+        L.DomUtil.setPosition(canvas, topLeft)
+        canvas.width = size.x
+        canvas.height = size.y
+
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+        ctx.clearRect(0, 0, size.x, size.y)
+
+        const zoom = map.getZoom()
+        const radius = Math.max(5, Math.round(8 * Math.pow(1.25, zoom - 14)))
+        const feather = 2
+        const bounds = map.getBounds()
+
+        for (const p of points) {
+          if (!bounds.contains([p.lat, p.lng])) continue
+          const px = map.latLngToLayerPoint([p.lat, p.lng])
+          const x = px.x - topLeft.x
+          const y = px.y - topLeft.y
+
+          const [cr, cg, cb, ca] = metricColorRGBA(p.value, min, max, opacity)
+          const rgba = `rgba(${cr}, ${cg}, ${cb}, ${ca / 255})`
+
+          ctx.fillStyle = rgba
+          ctx.beginPath()
+          ctx.arc(x, y, radius, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Feathered edge
+          const grad = ctx.createRadialGradient(x, y, radius, x, y, radius + feather)
+          grad.addColorStop(0, rgba)
+          grad.addColorStop(1, `rgba(${cr}, ${cg}, ${cb}, 0)`)
+          ctx.fillStyle = grad
+          ctx.beginPath()
+          ctx.arc(x, y, radius + feather, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      },
+    })
+
+    const overlay = new CanvasOverlay()
+    overlay.addTo(map)
+    return () => { overlay.remove() }
+  }, [map, points, min, max, opacity])
 
   return null
 }
@@ -1349,10 +1446,10 @@ export default function TrialMap({
             {samplePoints.length > 0 && (
               <LayersControl.Overlay checked name={`Soil Samples (${samplePoints.length})`}>
                 <FeatureGroup>
-                  <SoftPointOverlay
+                  <SolidPointOverlay
                     points={samplePoints.map(s => ({ lat: s.latitude, lng: s.longitude }))}
                     color="#10b981"
-                    opacity={0.5}
+                    opacity={0.8}
                   />
                   {samplePoints.map((s, i) => (
                     <CircleMarker
@@ -1547,43 +1644,40 @@ export default function TrialMap({
               )
             })}
 
-            {/* Metric overlay (color-coded points) — skip for GIS metrics since the layer itself is color-coded */}
+            {/* Metric overlay — yield-map style solid pixel canvas + invisible interaction markers */}
             {metricLayerData && selectedMetric && selectedMetric.source !== 'gis' && (
               <LayersControl.Overlay checked name={`${selectedMetric.label.slice(0, 30)} (metric)`}>
                 <FeatureGroup>
-                  {metricLayerData.points.map((pt, i) => {
-                    const color = metricColor(pt.value, metricLayerData.min, metricLayerData.max)
-                    // When interpolation surface is active, show dots as subtle interaction targets
-                    const interpolationActive = showInterpolation && metricLayerData.points.length >= 3
-                    return (
-                      <CircleMarker
-                        key={`metric-${i}`}
-                        center={[pt.lat, pt.lng]}
-                        radius={interpolationActive ? 4 : 5}
-                        pathOptions={{
-                          color: interpolationActive ? '#fff' : color,
-                          fillColor: color,
-                          fillOpacity: interpolationActive ? 0.7 : 0.85,
-                          weight: interpolationActive ? 1.5 : 1,
-                        }}
-                      >
-                        <Popup>
-                          <div className="text-sm">
-                            <p className="font-semibold">
-                              {pt.sample?.sample_no ? `Sample ${pt.sample.sample_no}` : `Point ${i + 1}`}
-                            </p>
-                            <p className="text-brand-black">
-                              {selectedMetric.label}: <span className="font-mono font-semibold">{pt.value}</span>
-                              {selectedMetric.unit ? ` ${selectedMetric.unit}` : ''}
-                            </p>
-                            {pt.sample?.property && <p className="text-gray-500">{pt.sample.property}</p>}
-                            {pt.sample?.block && <p className="text-gray-500">Block: {pt.sample.block}</p>}
-                            <p className="font-mono text-xs mt-1">{pt.lat}, {pt.lng}</p>
-                          </div>
-                        </Popup>
-                      </CircleMarker>
-                    )
-                  })}
+                  {/* Solid colour canvas — produces the dense yield-map look */}
+                  <MetricPointOverlay
+                    points={metricLayerData.points.map(p => ({ lat: p.lat, lng: p.lng, value: p.value }))}
+                    min={metricLayerData.min}
+                    max={metricLayerData.max}
+                  />
+                  {/* Invisible interaction targets for popup on click */}
+                  {metricLayerData.points.map((pt, i) => (
+                    <CircleMarker
+                      key={`metric-${i}`}
+                      center={[pt.lat, pt.lng]}
+                      radius={6}
+                      pathOptions={{ color: 'transparent', fillColor: 'transparent', fillOpacity: 0, weight: 0, opacity: 0 }}
+                    >
+                      <Popup>
+                        <div className="text-sm">
+                          <p className="font-semibold">
+                            {pt.sample?.sample_no ? `Sample ${pt.sample.sample_no}` : `Point ${i + 1}`}
+                          </p>
+                          <p className="text-brand-black">
+                            {selectedMetric.label}: <span className="font-mono font-semibold">{pt.value}</span>
+                            {selectedMetric.unit ? ` ${selectedMetric.unit}` : ''}
+                          </p>
+                          {pt.sample?.property && <p className="text-gray-500">{pt.sample.property}</p>}
+                          {pt.sample?.block && <p className="text-gray-500">Block: {pt.sample.block}</p>}
+                          <p className="font-mono text-xs mt-1">{pt.lat}, {pt.lng}</p>
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  ))}
                 </FeatureGroup>
               </LayersControl.Overlay>
             )}
@@ -1594,10 +1688,10 @@ export default function TrialMap({
               return (
                 <LayersControl.Overlay checked key={`custom-${layer.id}`} name={`${layer.name} (${layer.point_count} pts)`}>
                   <FeatureGroup>
-                    <SoftPointOverlay
+                    <SolidPointOverlay
                       points={layer.points.map(pt => ({ lat: pt.lat, lng: pt.lng }))}
                       color={layerColor}
-                      opacity={0.5}
+                      opacity={0.8}
                     />
                     {layer.points.map((pt, i) => (
                       <CircleMarker
