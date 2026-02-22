@@ -350,6 +350,41 @@ function metricColorRGBA(value: number, min: number, max: number, alpha: number)
   ]
 }
 
+// ---------- Convex hull (Andrew's monotone chain) ----------
+
+function computeConvexHull(pts: { lat: number; lng: number }[]): [number, number][] {
+  if (pts.length < 3) return pts.map(p => [p.lng, p.lat])
+  const sorted = [...pts].sort((a, b) => a.lng - b.lng || a.lat - b.lat)
+
+  function cross(O: typeof sorted[0], A: typeof sorted[0], B: typeof sorted[0]) {
+    return (A.lng - O.lng) * (B.lat - O.lat) - (A.lat - O.lat) * (B.lng - O.lng)
+  }
+
+  const lower: typeof sorted = []
+  for (const p of sorted) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop()
+    lower.push(p)
+  }
+  const upper: typeof sorted = []
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const p = sorted[i]
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop()
+    upper.push(p)
+  }
+  lower.pop()
+  upper.pop()
+  // Return as [lng, lat] pairs to match GeoJSON coordinate order
+  return [...lower, ...upper].map(p => [p.lng, p.lat])
+}
+
+/** Buffer a convex hull outward from its centroid by a fraction (e.g. 0.05 = 5%) */
+function bufferHull(ring: [number, number][], fraction: number): [number, number][] {
+  if (ring.length === 0) return ring
+  const cx = ring.reduce((s, p) => s + p[0], 0) / ring.length
+  const cy = ring.reduce((s, p) => s + p[1], 0) / ring.length
+  return ring.map(([x, y]) => [cx + (x - cx) * (1 + fraction), cy + (y - cy) * (1 + fraction)])
+}
+
 // ---------- IDW interpolation ----------
 
 interface IDWPoint { lat: number; lng: number; value: number }
@@ -372,8 +407,27 @@ function idwInterpolate(
   return valueSum / weightSum
 }
 
-/** Leaflet overlay that renders IDW-interpolated heatmap on a canvas */
-function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max: number }) {
+/** Collect exterior polygon rings (as [lng,lat][] arrays) from a FeatureCollection */
+function extractPolygonRings(fc: FeatureCollection): [number, number][][] {
+  const rings: [number, number][][] = []
+  for (const f of fc.features) {
+    const geom = f.geometry
+    if (!geom) continue
+    if (geom.type === 'Polygon') {
+      rings.push(geom.coordinates[0] as [number, number][])
+    } else if (geom.type === 'MultiPolygon') {
+      for (const poly of geom.coordinates) {
+        rings.push(poly[0] as [number, number][])
+      }
+    }
+  }
+  return rings
+}
+
+/** Leaflet overlay that renders IDW-interpolated heatmap on a canvas, clipped to boundary */
+function IDWOverlay({ points, min, max, boundary }: {
+  points: IDWPoint[]; min: number; max: number; boundary: FeatureCollection | null
+}) {
   const map = useMap()
 
   useEffect(() => {
@@ -433,6 +487,40 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
           return
         }
 
+        // Determine clip rings: use field boundary if provided, else convex hull of points
+        let clipRings: [number, number][][] = []
+        if (boundary && boundary.features?.length) {
+          clipRings = extractPolygonRings(boundary)
+        }
+        if (clipRings.length === 0) {
+          // Fallback: convex hull of data points with a small buffer
+          const hull = computeConvexHull(points)
+          if (hull.length >= 3) {
+            clipRings = [bufferHull(hull, 0.05)]
+          }
+        }
+
+        // Compute pixel-space bounding box of clip region to skip IDW outside it
+        let clipMinSx = 0, clipMaxSx = smallW, clipMinSy = 0, clipMaxSy = smallH
+        if (clipRings.length > 0) {
+          let pxMinX = Infinity, pxMaxX = -Infinity, pxMinY = Infinity, pxMaxY = -Infinity
+          for (const ring of clipRings) {
+            for (const [lng, lat] of ring) {
+              const lp = map.latLngToLayerPoint([lat, lng])
+              const px = lp.x - topLeft.x
+              const py = lp.y - topLeft.y
+              if (px < pxMinX) pxMinX = px
+              if (px > pxMaxX) pxMaxX = px
+              if (py < pxMinY) pxMinY = py
+              if (py > pxMaxY) pxMaxY = py
+            }
+          }
+          clipMinSx = Math.max(0, Math.floor(pxMinX / STEP))
+          clipMaxSx = Math.min(smallW, Math.ceil(pxMaxX / STEP) + 1)
+          clipMinSy = Math.max(0, Math.floor(pxMinY / STEP))
+          clipMaxSy = Math.min(smallH, Math.ceil(pxMaxY / STEP) + 1)
+        }
+
         // Render IDW at reduced resolution on an offscreen canvas
         const offscreen = document.createElement('canvas')
         offscreen.width = smallW
@@ -442,8 +530,8 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
 
         const imageData = offCtx.createImageData(smallW, smallH)
 
-        for (let sy = 0; sy < smallH; sy++) {
-          for (let sx = 0; sx < smallW; sx++) {
+        for (let sy = clipMinSy; sy < clipMaxSy; sy++) {
+          for (let sx = clipMinSx; sx < clipMaxSx; sx++) {
             const containerPoint = L.point(sx * STEP, sy * STEP).add(topLeft)
             const latlng = map.layerPointToLatLng(containerPoint)
             const val = idwInterpolate(nearby, latlng.lat, latlng.lng)
@@ -459,10 +547,32 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
 
         offCtx.putImageData(imageData, 0, 0)
 
+        // Apply clip path and draw the interpolation
+        if (clipRings.length > 0) {
+          ctx.save()
+          ctx.beginPath()
+          for (const ring of clipRings) {
+            for (let i = 0; i < ring.length; i++) {
+              const [lng, lat] = ring[i]
+              const lp = map.latLngToLayerPoint([lat, lng])
+              const bx = lp.x - topLeft.x
+              const by = lp.y - topLeft.y
+              if (i === 0) ctx.moveTo(bx, by)
+              else ctx.lineTo(bx, by)
+            }
+            ctx.closePath()
+          }
+          ctx.clip()
+        }
+
         // Scale up with bilinear interpolation for smooth gradients
         ctx.imageSmoothingEnabled = true
         ctx.imageSmoothingQuality = 'high'
         ctx.drawImage(offscreen, 0, 0, size.x, size.y)
+
+        if (clipRings.length > 0) {
+          ctx.restore()
+        }
       },
     })
 
@@ -472,7 +582,7 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
     return () => {
       overlay.remove()
     }
-  }, [map, points, min, max])
+  }, [map, points, min, max, boundary])
 
   return null
 }
@@ -844,6 +954,15 @@ export default function TrialMap({
         })),
     [linkedFields]
   )
+
+  // Merge linked field boundaries into a single FeatureCollection for IDW clipping
+  const interpolationBoundary = useMemo<FeatureCollection | null>(() => {
+    if (fieldBoundaries.length === 0) return null
+    return {
+      type: 'FeatureCollection',
+      features: fieldBoundaries.flatMap(fb => fb.boundary.features),
+    }
+  }, [fieldBoundaries])
 
   // Sanitise field GIS layers
   const sanitizedFieldGisLayers = useMemo(
@@ -1725,6 +1844,7 @@ export default function TrialMap({
               points={metricLayerData.points.map(p => ({ lat: p.lat, lng: p.lng, value: p.value }))}
               min={metricLayerData.min}
               max={metricLayerData.max}
+              boundary={interpolationBoundary}
             />
           )}
 
