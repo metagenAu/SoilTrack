@@ -412,7 +412,7 @@ function IDWOverlay({ points, min, max }: { points: IDWPoint[]; min: number; max
         const ctx = canvas.getContext('2d')
         if (!ctx) return
 
-        const STEP = 2 // compute IDW every 2px for yield-map smoothness
+        const STEP = 3 // compute IDW every 3px — good smoothness vs performance
         const smallW = Math.ceil(size.x / STEP)
         const smallH = Math.ceil(size.y / STEP)
 
@@ -1442,7 +1442,7 @@ export default function TrialMap({
               </LayersControl.Overlay>
             )}
 
-            {/* Sample points — soft canvas underlay + small interactive markers */}
+            {/* Sample points — solid canvas overlay + invisible interaction markers */}
             {samplePoints.length > 0 && (
               <LayersControl.Overlay checked name={`Soil Samples (${samplePoints.length})`}>
                 <FeatureGroup>
@@ -1455,8 +1455,8 @@ export default function TrialMap({
                     <CircleMarker
                       key={i}
                       center={[s.latitude, s.longitude]}
-                      radius={4}
-                      pathOptions={{ color: '#fff', fillColor: '#10b981', fillOpacity: 0.85, weight: 1.5 }}
+                      radius={6}
+                      pathOptions={{ color: 'transparent', fillColor: 'transparent', fillOpacity: 0, weight: 0, opacity: 0 }}
                     >
                       <Popup>
                         <div className="text-sm">
@@ -1648,12 +1648,14 @@ export default function TrialMap({
             {metricLayerData && selectedMetric && selectedMetric.source !== 'gis' && (
               <LayersControl.Overlay checked name={`${selectedMetric.label.slice(0, 30)} (metric)`}>
                 <FeatureGroup>
-                  {/* Solid colour canvas — produces the dense yield-map look */}
-                  <MetricPointOverlay
-                    points={metricLayerData.points.map(p => ({ lat: p.lat, lng: p.lng, value: p.value }))}
-                    min={metricLayerData.min}
-                    max={metricLayerData.max}
-                  />
+                  {/* Per-point canvas only when IDW interpolation is off (avoids double-stack) */}
+                  {!(showInterpolation && metricLayerData.points.length >= 3) && (
+                    <MetricPointOverlay
+                      points={metricLayerData.points.map(p => ({ lat: p.lat, lng: p.lng, value: p.value }))}
+                      min={metricLayerData.min}
+                      max={metricLayerData.max}
+                    />
+                  )}
                   {/* Invisible interaction targets for popup on click */}
                   {metricLayerData.points.map((pt, i) => (
                     <CircleMarker
@@ -1697,8 +1699,8 @@ export default function TrialMap({
                       <CircleMarker
                         key={i}
                         center={[pt.lat, pt.lng]}
-                        radius={4}
-                        pathOptions={{ color: '#fff', fillColor: layerColor, fillOpacity: 0.85, weight: 1.5 }}
+                        radius={6}
+                        pathOptions={{ color: 'transparent', fillColor: 'transparent', fillOpacity: 0, weight: 0, opacity: 0 }}
                       >
                         <Popup>
                           <div className="text-sm">
