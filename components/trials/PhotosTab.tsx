@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Camera, Upload, Trash2, X, Loader2, Image as ImageIcon } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { cn, formatDate } from '@/lib/utils'
@@ -23,17 +23,39 @@ interface PhotosTabProps {
   supabaseUrl: string
 }
 
-function getPublicUrl(supabaseUrl: string, storagePath: string) {
-  return `${supabaseUrl}/storage/v1/object/public/trial-photos/${storagePath}`
-}
-
 export default function PhotosTab({ photos: initialPhotos, trialId, supabaseUrl }: PhotosTabProps) {
   const [photos, setPhotos] = useState(initialPhotos)
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({})
   const [uploading, setUploading] = useState(false)
   const [lightboxPhoto, setLightboxPhoto] = useState<TrialPhoto | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { canUpload, canModify } = useUserRole()
+
+  // Generate signed URLs for private bucket photos
+  useEffect(() => {
+    if (photos.length === 0) {
+      setPhotoUrls({})
+      return
+    }
+
+    const supabase = createClient()
+    const paths = photos.map(p => p.storage_path)
+
+    supabase.storage
+      .from('trial-photos')
+      .createSignedUrls(paths, 3600)
+      .then(({ data, error }) => {
+        if (error || !data) return
+        const urlMap: Record<string, string> = {}
+        data.forEach((item) => {
+          if (item.signedUrl && item.path) {
+            urlMap[item.path] = item.signedUrl
+          }
+        })
+        setPhotoUrls(urlMap)
+      })
+  }, [photos])
 
   async function handleUpload(fileList: FileList) {
     const files = Array.from(fileList).filter(f =>
@@ -162,12 +184,14 @@ export default function PhotosTab({ photos: initialPhotos, trialId, supabaseUrl 
               className="group relative aspect-square rounded-lg overflow-hidden bg-brand-grey-3 cursor-pointer border border-brand-grey-2 hover:border-brand-grey-1/50 transition-colors"
               onClick={() => setLightboxPhoto(photo)}
             >
-              <img
-                src={getPublicUrl(supabaseUrl, photo.storage_path)}
-                alt={photo.caption || photo.filename}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
+              {photoUrls[photo.storage_path] && (
+                <img
+                  src={photoUrls[photo.storage_path]}
+                  alt={photo.caption || photo.filename}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              )}
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <p className="text-xs text-white truncate">{photo.filename}</p>
                 {photo.created_at && (
@@ -212,7 +236,7 @@ export default function PhotosTab({ photos: initialPhotos, trialId, supabaseUrl 
             onClick={(e) => e.stopPropagation()}
           >
             <img
-              src={getPublicUrl(supabaseUrl, lightboxPhoto.storage_path)}
+              src={photoUrls[lightboxPhoto.storage_path] || ''}
               alt={lightboxPhoto.caption || lightboxPhoto.filename}
               className="max-w-full max-h-[80vh] object-contain rounded-lg"
             />
