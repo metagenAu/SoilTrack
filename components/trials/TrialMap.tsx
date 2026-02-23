@@ -494,6 +494,9 @@ function IDWOverlay({ points, min, max, boundary, show = true }: {
 
         this._rafId = null as number | null
         map.on('moveend zoomend resize', this._scheduleRedraw, this)
+        // Hide canvas during zoom animation to prevent ghost/dual-size effect
+        map.on('zoomstart', this._hideForZoom, this)
+        map.on('zoomend', this._showAfterZoom, this)
         if (showRef.current) this._redraw()
       },
 
@@ -504,6 +507,16 @@ function IDWOverlay({ points, min, max, boundary, show = true }: {
         }
         canvasRef.current = null
         map.off('moveend zoomend resize', this._scheduleRedraw, this)
+        map.off('zoomstart', this._hideForZoom, this)
+        map.off('zoomend', this._showAfterZoom, this)
+      },
+
+      _hideForZoom() {
+        if (this._canvas && showRef.current) this._canvas.style.opacity = '0'
+      },
+
+      _showAfterZoom() {
+        if (this._canvas && showRef.current) this._canvas.style.opacity = '1'
       },
 
       _scheduleRedraw() {
@@ -763,6 +776,8 @@ function SolidPointOverlay({ points, color, opacity = 0.85 }: {
         if (pane) pane.appendChild(this._canvas)
         this._rafId = null as number | null
         map.on('moveend zoomend resize', this._scheduleRedraw, this)
+        map.on('zoomstart', this._hideForZoom, this)
+        map.on('zoomend', this._showAfterZoom, this)
         this._redraw()
       },
 
@@ -770,6 +785,16 @@ function SolidPointOverlay({ points, color, opacity = 0.85 }: {
         if (this._rafId) cancelAnimationFrame(this._rafId)
         if (this._canvas.parentNode) this._canvas.parentNode.removeChild(this._canvas)
         map.off('moveend zoomend resize', this._scheduleRedraw, this)
+        map.off('zoomstart', this._hideForZoom, this)
+        map.off('zoomend', this._showAfterZoom, this)
+      },
+
+      _hideForZoom() {
+        if (this._canvas) this._canvas.style.opacity = '0'
+      },
+
+      _showAfterZoom() {
+        if (this._canvas) this._canvas.style.opacity = '1'
       },
 
       _scheduleRedraw() {
@@ -865,6 +890,8 @@ function MetricPointOverlay({ points, min, max, opacity = 0.88 }: {
         if (pane) pane.appendChild(this._canvas)
         this._rafId = null as number | null
         map.on('moveend zoomend resize', this._scheduleRedraw, this)
+        map.on('zoomstart', this._hideForZoom, this)
+        map.on('zoomend', this._showAfterZoom, this)
         this._redraw()
       },
 
@@ -872,6 +899,16 @@ function MetricPointOverlay({ points, min, max, opacity = 0.88 }: {
         if (this._rafId) cancelAnimationFrame(this._rafId)
         if (this._canvas.parentNode) this._canvas.parentNode.removeChild(this._canvas)
         map.off('moveend zoomend resize', this._scheduleRedraw, this)
+        map.off('zoomstart', this._hideForZoom, this)
+        map.off('zoomend', this._showAfterZoom, this)
+      },
+
+      _hideForZoom() {
+        if (this._canvas) this._canvas.style.opacity = '0'
+      },
+
+      _showAfterZoom() {
+        if (this._canvas) this._canvas.style.opacity = '1'
       },
 
       _scheduleRedraw() {
@@ -951,8 +988,13 @@ function InvalidateSize({ visible }: { visible: boolean }) {
 
 function FitBounds({ points, geoJsonLayers }: { points: [number, number][]; geoJsonLayers: FeatureCollection[] }) {
   const map = useMap()
+  const fittedRef = useRef(false)
 
   useEffect(() => {
+    // Only fit bounds once on initial data load to avoid fighting user zoom/scroll
+    if (fittedRef.current) return
+    if (points.length === 0 && geoJsonLayers.length === 0) return
+
     const bounds = L.latLngBounds([])
 
     for (const [lat, lng] of points) {
@@ -973,6 +1015,7 @@ function FitBounds({ points, geoJsonLayers }: { points: [number, number][]; geoJ
 
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 })
+      fittedRef.current = true
     }
   }, [map, points, geoJsonLayers])
 
@@ -1647,6 +1690,8 @@ export default function TrialMap({
           zoom={defaultZoom}
           className="h-full w-full"
           scrollWheelZoom={true}
+          wheelDebounceTime={80}
+          wheelPxPerZoomLevel={120}
           preferCanvas={true}
         >
           <LayersControl position="topright">

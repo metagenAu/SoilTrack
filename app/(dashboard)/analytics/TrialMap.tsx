@@ -67,6 +67,8 @@ export default function TrialMap({ trials, getCropColor, visible = true }: Trial
       zoom={4}
       style={{ height: '100%', width: '100%' }}
       scrollWheelZoom={true}
+      wheelDebounceTime={80}
+      wheelPxPerZoomLevel={120}
       preferCanvas={true}
     >
       <TileLayer
