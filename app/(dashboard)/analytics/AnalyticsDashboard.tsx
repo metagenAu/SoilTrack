@@ -64,15 +64,17 @@ export default function AnalyticsDashboard({
         })}
       </div>
 
-      {/* Tab content */}
-      {activeTab === 'map' && <MapTab trials={trials} />}
-      {activeTab === 'summary' && (
+      {/* Tab content — kept mounted to preserve Leaflet map state across tab switches */}
+      <div style={{ display: activeTab === 'map' ? undefined : 'none' }}>
+        <MapTab trials={trials} visible={activeTab === 'map'} />
+      </div>
+      <div style={{ display: activeTab === 'summary' ? undefined : 'none' }}>
         <SummaryTab
           trials={trials}
           totalClients={totalClients}
           totalSamples={totalSamples}
         />
-      )}
+      </div>
     </div>
   )
 }

@@ -18,6 +18,19 @@ interface MapTrial {
 interface TrialMapProps {
   trials: MapTrial[]
   getCropColor: (crop: string | null) => string
+  visible?: boolean
+}
+
+/** Call map.invalidateSize() when the container becomes visible after being hidden */
+function InvalidateSize({ visible }: { visible: boolean }) {
+  const map = useMap()
+  useEffect(() => {
+    if (visible) {
+      const timer = setTimeout(() => map.invalidateSize(), 50)
+      return () => clearTimeout(timer)
+    }
+  }, [visible, map])
+  return null
 }
 
 // Fit bounds whenever trials change
@@ -44,7 +57,7 @@ function FitBounds({ trials }: { trials: MapTrial[] }) {
   return null
 }
 
-export default function TrialMap({ trials, getCropColor }: TrialMapProps) {
+export default function TrialMap({ trials, getCropColor, visible = true }: TrialMapProps) {
   // Center on Australia
   const center: [number, number] = [-28.0, 134.0]
 
@@ -60,6 +73,7 @@ export default function TrialMap({ trials, getCropColor }: TrialMapProps) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      <InvalidateSize visible={visible} />
       <FitBounds trials={trials} />
       {trials.map((trial) => (
         <CircleMarker

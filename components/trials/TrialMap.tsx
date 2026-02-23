@@ -123,6 +123,7 @@ interface TrialMapProps {
   fieldGisLayers?: FieldGISLayer[]
   applications?: TrialApplicationLayer[]
   supabaseUrl: string
+  visible?: boolean
 }
 
 // ---------- Helpers ----------
@@ -841,6 +842,18 @@ function MetricPointOverlay({ points, min, max, opacity = 0.88 }: {
 
 // ---------- Sub-components ----------
 
+/** Call map.invalidateSize() when the container becomes visible after being hidden */
+function InvalidateSize({ visible }: { visible: boolean }) {
+  const map = useMap()
+  useEffect(() => {
+    if (visible) {
+      const timer = setTimeout(() => map.invalidateSize(), 50)
+      return () => clearTimeout(timer)
+    }
+  }, [visible, map])
+  return null
+}
+
 function FitBounds({ points, geoJsonLayers }: { points: [number, number][]; geoJsonLayers: FeatureCollection[] }) {
   const map = useMap()
 
@@ -913,6 +926,7 @@ export default function TrialMap({
   fieldGisLayers: initialFieldGisLayers = [],
   applications: initialApplications = [],
   supabaseUrl,
+  visible = true,
 }: TrialMapProps) {
   const [gisLayers, setGisLayers] = useState(initialLayers)
   const [customLayers, setCustomLayers] = useState(initialCustomLayers)
@@ -1848,6 +1862,7 @@ export default function TrialMap({
             />
           )}
 
+          <InvalidateSize visible={visible} />
           <FitBounds points={allPoints} geoJsonLayers={allGeoJsons} />
         </MapContainer>
 

@@ -259,25 +259,31 @@ export default function TrialDetailTabs({
         </div>
       )}
 
-      {activeTab === 'Map' && (
+      {/* Map tab — loading/error shown only while active and data not ready */}
+      {activeTab === 'Map' && !mapData && (
         <div className="card">
-          {mapLoading || (!mapData && !mapError) ? (
-            <p className="text-sm text-brand-grey-1 py-8 text-center">Loading map data…</p>
-          ) : mapError ? (
+          {mapError ? (
             <p className="text-sm text-red-600 py-8 text-center">Failed to load map data. Please refresh the page.</p>
           ) : (
-            <TrialMap
-              trial={trial}
-              samples={samples}
-              gisLayers={mapData!.gisLayers}
-              customLayers={mapData!.customLayers}
-              soilChemistry={mapData!.soilChemistry}
-              linkedFields={linkedFields}
-              fieldGisLayers={mapData!.fieldGisLayers}
-              applications={applications}
-              supabaseUrl={supabaseUrl}
-            />
+            <p className="text-sm text-brand-grey-1 py-8 text-center">Loading map data…</p>
           )}
+        </div>
+      )}
+      {/* Map tab — kept mounted once loaded to preserve Leaflet state across tab switches */}
+      {mapData && (
+        <div className="card" style={{ display: activeTab === 'Map' ? undefined : 'none' }}>
+          <TrialMap
+            trial={trial}
+            samples={samples}
+            gisLayers={mapData.gisLayers}
+            customLayers={mapData.customLayers}
+            soilChemistry={mapData.soilChemistry}
+            linkedFields={linkedFields}
+            fieldGisLayers={mapData.fieldGisLayers}
+            applications={applications}
+            supabaseUrl={supabaseUrl}
+            visible={activeTab === 'Map'}
+          />
         </div>
       )}
 
