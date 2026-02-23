@@ -100,6 +100,8 @@ export default function SamplingPlanMap({
       preferCanvas: true,
       center: [-33.86, 151.21],
       zoom: 5,
+      wheelDebounceTime: 80,
+      wheelPxPerZoomLevel: 120,
     })
 
     const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

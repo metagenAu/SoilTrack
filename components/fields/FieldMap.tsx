@@ -214,6 +214,8 @@ export default function FieldMap({
       preferCanvas: true,
       center: [-33.86, 151.21], // Default: Sydney
       zoom: 5,
+      wheelDebounceTime: 80,
+      wheelPxPerZoomLevel: 120,
     })
 
     // Base layers
