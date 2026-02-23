@@ -332,6 +332,13 @@ function lerpColor(a: string, b: string, t: number): string {
 
 const GRADIENT_STOPS = ['#ef4444', '#f59e0b', '#eab308', '#84cc16', '#22c55e']
 
+// Pre-computed RGB tuples for fast per-pixel color interpolation (avoids hex parse/format)
+const GRADIENT_STOPS_RGB: [number, number, number][] = GRADIENT_STOPS.map(hex => [
+  parseInt(hex.slice(1, 3), 16),
+  parseInt(hex.slice(3, 5), 16),
+  parseInt(hex.slice(5, 7), 16),
+])
+
 function metricColor(value: number, min: number, max: number): string {
   if (max === min) return GRADIENT_STOPS[2]
   const t = Math.max(0, Math.min(1, (value - min) / (max - min)))
@@ -341,14 +348,25 @@ function metricColor(value: number, min: number, max: number): string {
   return lerpColor(GRADIENT_STOPS[seg], GRADIENT_STOPS[seg + 1], segT)
 }
 
-function metricColorRGBA(value: number, min: number, max: number, alpha: number): [number, number, number, number] {
-  const hex = metricColor(value, min, max)
+/** Fast RGB interpolation for IDW inner loop — works directly on pre-parsed RGB values */
+function metricColorRGBDirect(value: number, min: number, max: number): [number, number, number] {
+  if (max === min) return GRADIENT_STOPS_RGB[2]
+  const t = Math.max(0, Math.min(1, (value - min) / (max - min)))
+  const segCount = GRADIENT_STOPS_RGB.length - 1
+  const seg = Math.min(Math.floor(t * segCount), segCount - 1)
+  const segT = (t * segCount) - seg
+  const a = GRADIENT_STOPS_RGB[seg]
+  const b = GRADIENT_STOPS_RGB[seg + 1]
   return [
-    parseInt(hex.slice(1, 3), 16),
-    parseInt(hex.slice(3, 5), 16),
-    parseInt(hex.slice(5, 7), 16),
-    Math.round(alpha * 255),
+    Math.round(a[0] + (b[0] - a[0]) * segT),
+    Math.round(a[1] + (b[1] - a[1]) * segT),
+    Math.round(a[2] + (b[2] - a[2]) * segT),
   ]
+}
+
+function metricColorRGBA(value: number, min: number, max: number, alpha: number): [number, number, number, number] {
+  const [r, g, b] = metricColorRGBDirect(value, min, max)
+  return [r, g, b, Math.round(alpha * 255)]
 }
 
 // ---------- Convex hull (Andrew's monotone chain) ----------
@@ -399,9 +417,10 @@ function idwInterpolate(
   let weightSum = 0
   let valueSum = 0
   for (const p of points) {
-    const dist = Math.sqrt((p.lat - targetLat) ** 2 + (p.lng - targetLng) ** 2)
-    if (dist < 1e-10) return p.value
-    const w = 1 / (dist ** power)
+    const dist2 = (p.lat - targetLat) ** 2 + (p.lng - targetLng) ** 2
+    if (dist2 < 1e-20) return p.value
+    // For power=2 (default), w = 1/dist² = 1/dist2 — avoids sqrt entirely
+    const w = power === 2 ? 1 / dist2 : 1 / (Math.sqrt(dist2) ** power)
     weightSum += w
     valueSum += w * p.value
   }
@@ -425,36 +444,80 @@ function extractPolygonRings(fc: FeatureCollection): [number, number][][] {
   return rings
 }
 
-/** Leaflet overlay that renders IDW-interpolated heatmap on a canvas, clipped to boundary */
-function IDWOverlay({ points, min, max, boundary }: {
-  points: IDWPoint[]; min: number; max: number; boundary: FeatureCollection | null
+/** Leaflet overlay that renders IDW-interpolated heatmap on a canvas, clipped to boundary.
+ *  Optimised: rAF-debounced redraws, pre-computed lat/lng grid, direct RGB interpolation,
+ *  and a `show` prop so the canvas can be hidden/shown without destroying the overlay.
+ */
+function IDWOverlay({ points, min, max, boundary, show = true }: {
+  points: IDWPoint[]; min: number; max: number; boundary: FeatureCollection | null; show?: boolean
 }) {
   const map = useMap()
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const overlayRef = useRef<any>(null)
+  const showRef = useRef(show)
+  showRef.current = show
 
+  // Keep current data in refs so _redraw reads latest without re-creating overlay
+  const dataRef = useRef({ points, min, max, boundary })
+  dataRef.current = { points, min, max, boundary }
+
+  // Toggle canvas visibility without destroying the overlay
   useEffect(() => {
-    if (points.length < 3) return
+    if (canvasRef.current) {
+      canvasRef.current.style.display = show ? '' : 'none'
+    }
+    // Trigger redraw when becoming visible (viewport may have changed)
+    if (show && overlayRef.current) {
+      overlayRef.current._scheduleRedraw()
+    }
+  }, [show])
 
+  // Trigger redraw when data changes (without re-creating overlay)
+  useEffect(() => {
+    if (overlayRef.current && showRef.current) {
+      overlayRef.current._scheduleRedraw()
+    }
+  }, [points, min, max, boundary])
+
+  // Create overlay once (per map instance)
+  useEffect(() => {
     const CanvasOverlay = L.Layer.extend({
       onAdd(map: L.Map) {
         this._map = map
         this._canvas = L.DomUtil.create('canvas', 'leaflet-layer') as HTMLCanvasElement
         this._canvas.style.position = 'absolute'
         this._canvas.style.pointerEvents = 'none'
+        if (!showRef.current) this._canvas.style.display = 'none'
+        canvasRef.current = this._canvas
         const pane = map.getPane('overlayPane')
         if (pane) pane.appendChild(this._canvas)
 
-        map.on('moveend zoomend resize', this._redraw, this)
-        this._redraw()
+        this._rafId = null as number | null
+        map.on('moveend zoomend resize', this._scheduleRedraw, this)
+        if (showRef.current) this._redraw()
       },
 
       onRemove(map: L.Map) {
+        if (this._rafId) cancelAnimationFrame(this._rafId)
         if (this._canvas.parentNode) {
           this._canvas.parentNode.removeChild(this._canvas)
         }
-        map.off('moveend zoomend resize', this._redraw, this)
+        canvasRef.current = null
+        map.off('moveend zoomend resize', this._scheduleRedraw, this)
+      },
+
+      _scheduleRedraw() {
+        if (!showRef.current) return
+        if (this._rafId) cancelAnimationFrame(this._rafId)
+        this._rafId = requestAnimationFrame(() => {
+          this._rafId = null
+          if (showRef.current) this._redraw()
+        })
       },
 
       _redraw() {
+        const { points, min, max, boundary } = dataRef.current
+        if (points.length < 3) return
         const map = this._map
         const canvas = this._canvas as HTMLCanvasElement
         const size = map.getSize()
@@ -467,7 +530,7 @@ function IDWOverlay({ points, min, max, boundary }: {
         const ctx = canvas.getContext('2d')
         if (!ctx) return
 
-        const STEP = 3 // compute IDW every 3px — good smoothness vs performance
+        const STEP = 4 // compute IDW every 4px (was 3) — better perf, still smooth
         const smallW = Math.ceil(size.x / STEP)
         const smallH = Math.ceil(size.y / STEP)
 
@@ -522,6 +585,15 @@ function IDWOverlay({ points, min, max, boundary }: {
           clipMaxSy = Math.min(smallH, Math.ceil(pxMaxY / STEP) + 1)
         }
 
+        // Pre-compute lat/lng grid via linear interpolation (avoids per-pixel layerPointToLatLng)
+        const tlLatLng = map.layerPointToLatLng(topLeft)
+        const trPt = L.point(topLeft.x + size.x, topLeft.y)
+        const blPt = L.point(topLeft.x, topLeft.y + size.y)
+        const trLatLng = map.layerPointToLatLng(trPt)
+        const blLatLng = map.layerPointToLatLng(blPt)
+        const latPerPxY = (blLatLng.lat - tlLatLng.lat) / size.y
+        const lngPerPxX = (trLatLng.lng - tlLatLng.lng) / size.x
+
         // Render IDW at reduced resolution on an offscreen canvas
         const offscreen = document.createElement('canvas')
         offscreen.width = smallW
@@ -530,19 +602,20 @@ function IDWOverlay({ points, min, max, boundary }: {
         if (!offCtx) return
 
         const imageData = offCtx.createImageData(smallW, smallH)
+        const alpha = Math.round(0.8 * 255)
 
         for (let sy = clipMinSy; sy < clipMaxSy; sy++) {
+          const lat = tlLatLng.lat + sy * STEP * latPerPxY
           for (let sx = clipMinSx; sx < clipMaxSx; sx++) {
-            const containerPoint = L.point(sx * STEP, sy * STEP).add(topLeft)
-            const latlng = map.layerPointToLatLng(containerPoint)
-            const val = idwInterpolate(nearby, latlng.lat, latlng.lng)
-            const [r, g, b, a] = metricColorRGBA(val, min, max, 0.8)
+            const lng = tlLatLng.lng + sx * STEP * lngPerPxX
+            const val = idwInterpolate(nearby, lat, lng)
+            const [r, g, b] = metricColorRGBDirect(val, min, max)
 
             const idx = (sy * smallW + sx) * 4
             imageData.data[idx] = r
             imageData.data[idx + 1] = g
             imageData.data[idx + 2] = b
-            imageData.data[idx + 3] = a
+            imageData.data[idx + 3] = alpha
           }
         }
 
@@ -578,12 +651,14 @@ function IDWOverlay({ points, min, max, boundary }: {
     })
 
     const overlay = new CanvasOverlay()
+    overlayRef.current = overlay
     overlay.addTo(map)
 
     return () => {
       overlay.remove()
+      overlayRef.current = null
     }
-  }, [map, points, min, max, boundary])
+  }, [map]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return null
 }
@@ -686,13 +761,23 @@ function SolidPointOverlay({ points, color, opacity = 0.85 }: {
         this._canvas.style.pointerEvents = 'none'
         const pane = map.getPane('overlayPane')
         if (pane) pane.appendChild(this._canvas)
-        map.on('moveend zoomend resize', this._redraw, this)
+        this._rafId = null as number | null
+        map.on('moveend zoomend resize', this._scheduleRedraw, this)
         this._redraw()
       },
 
       onRemove(map: L.Map) {
+        if (this._rafId) cancelAnimationFrame(this._rafId)
         if (this._canvas.parentNode) this._canvas.parentNode.removeChild(this._canvas)
-        map.off('moveend zoomend resize', this._redraw, this)
+        map.off('moveend zoomend resize', this._scheduleRedraw, this)
+      },
+
+      _scheduleRedraw() {
+        if (this._rafId) cancelAnimationFrame(this._rafId)
+        this._rafId = requestAnimationFrame(() => {
+          this._rafId = null
+          this._redraw()
+        })
       },
 
       _redraw() {
@@ -778,13 +863,23 @@ function MetricPointOverlay({ points, min, max, opacity = 0.88 }: {
         this._canvas.style.pointerEvents = 'none'
         const pane = map.getPane('overlayPane')
         if (pane) pane.appendChild(this._canvas)
-        map.on('moveend zoomend resize', this._redraw, this)
+        this._rafId = null as number | null
+        map.on('moveend zoomend resize', this._scheduleRedraw, this)
         this._redraw()
       },
 
       onRemove(map: L.Map) {
+        if (this._rafId) cancelAnimationFrame(this._rafId)
         if (this._canvas.parentNode) this._canvas.parentNode.removeChild(this._canvas)
-        map.off('moveend zoomend resize', this._redraw, this)
+        map.off('moveend zoomend resize', this._scheduleRedraw, this)
+      },
+
+      _scheduleRedraw() {
+        if (this._rafId) cancelAnimationFrame(this._rafId)
+        this._rafId = requestAnimationFrame(() => {
+          this._rafId = null
+          this._redraw()
+        })
       },
 
       _redraw() {
@@ -1852,13 +1947,14 @@ export default function TrialMap({
             })}
           </LayersControl>
 
-          {/* IDW interpolation heatmap overlay */}
-          {showInterpolation && metricLayerData && metricLayerData.points.length >= 3 && (
+          {/* IDW interpolation heatmap overlay — kept mounted, visibility toggled via show prop */}
+          {metricLayerData && metricLayerData.points.length >= 3 && (
             <IDWOverlay
               points={metricLayerData.points.map(p => ({ lat: p.lat, lng: p.lng, value: p.value }))}
               min={metricLayerData.min}
               max={metricLayerData.max}
               boundary={interpolationBoundary}
+              show={showInterpolation}
             />
           )}
 
