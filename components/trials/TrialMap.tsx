@@ -507,8 +507,8 @@ function IDWOverlay({ points, min, max, boundary, show = true }: {
       },
 
       _scheduleRedraw() {
-        if (!showRef.current) return
         if (this._rafId) cancelAnimationFrame(this._rafId)
+        if (!showRef.current) return
         this._rafId = requestAnimationFrame(() => {
           this._rafId = null
           if (showRef.current) this._redraw()
