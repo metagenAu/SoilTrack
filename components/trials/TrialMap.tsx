@@ -1232,6 +1232,13 @@ export default function TrialMap({
     return { points, min: Math.min(...values), max: Math.max(...values) }
   }, [selectedMetric, samplePoints, chemBySample, customLayers, sanitizedGisLayers])
 
+  // Memoize derived point arrays to avoid new references on every render
+  // (prevents unnecessary IDW recomputes and overlay recreations)
+  const metricIdwPoints = useMemo(() =>
+    metricLayerData?.points.map(p => ({ lat: p.lat, lng: p.lng, value: p.value })) ?? [],
+    [metricLayerData]
+  )
+
   // Default center: trial GPS, first sample point, or Australia
   const defaultCenter: [number, number] = trialCoord
     ?? (samplePoints.length > 0 ? [samplePoints[0].latitude, samplePoints[0].longitude] : [-28.0, 134.0])
@@ -1879,7 +1886,7 @@ export default function TrialMap({
                   {/* Per-point canvas only when IDW interpolation is off (avoids double-stack) */}
                   {!(showInterpolation && metricLayerData.points.length >= 3) && (
                     <MetricPointOverlay
-                      points={metricLayerData.points.map(p => ({ lat: p.lat, lng: p.lng, value: p.value }))}
+                      points={metricIdwPoints}
                       min={metricLayerData.min}
                       max={metricLayerData.max}
                     />
@@ -1950,7 +1957,7 @@ export default function TrialMap({
           {/* IDW interpolation heatmap overlay — kept mounted, visibility toggled via show prop */}
           {metricLayerData && metricLayerData.points.length >= 3 && (
             <IDWOverlay
-              points={metricLayerData.points.map(p => ({ lat: p.lat, lng: p.lng, value: p.value }))}
+              points={metricIdwPoints}
               min={metricLayerData.min}
               max={metricLayerData.max}
               boundary={interpolationBoundary}
