@@ -58,7 +58,7 @@ class MapErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryS
   }
 }
 
-export default function TrialMap(props: React.ComponentProps<typeof TrialMapInner>) {
+export default function TrialMap(props: React.ComponentProps<typeof TrialMapInner> & { visible?: boolean }) {
   return (
     <MapErrorBoundary>
       <TrialMapInner {...props} />

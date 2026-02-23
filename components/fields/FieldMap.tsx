@@ -95,6 +95,7 @@ interface FieldMapProps {
     geojson: FeatureCollection
     style: Record<string, unknown> | null
   }>
+  visible?: boolean
 }
 
 export default function FieldMap({
@@ -108,6 +109,7 @@ export default function FieldMap({
   trialGisLayers = [],
   fieldTrials = [],
   trialApplications = [],
+  visible = true,
 }: FieldMapProps) {
   const mapRef = useRef<L.Map | null>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -430,6 +432,14 @@ export default function FieldMap({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasBoundary, isDrawing])
+
+  // Recalculate map size when container becomes visible after being hidden
+  useEffect(() => {
+    if (visible && mapRef.current) {
+      const timer = setTimeout(() => mapRef.current?.invalidateSize(), 50)
+      return () => clearTimeout(timer)
+    }
+  }, [visible])
 
   // Enable drawing mode
   function startDrawing() {

@@ -56,7 +56,7 @@ class MapErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryS
   }
 }
 
-export default function FieldMapWrapper(props: React.ComponentProps<typeof FieldMapInner>) {
+export default function FieldMapWrapper(props: React.ComponentProps<typeof FieldMapInner> & { visible?: boolean }) {
   return (
     <MapErrorBoundary>
       <FieldMapInner {...props} />

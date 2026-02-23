@@ -50,7 +50,7 @@ function parseGps(gps: string): { lat: number; lng: number } | null {
   return { lat, lng }
 }
 
-export default function MapTab({ trials }: { trials: Trial[] }) {
+export default function MapTab({ trials, visible = true }: { trials: Trial[]; visible?: boolean }) {
   const [selectedCrop, setSelectedCrop] = useState<string | null>(null)
 
   const mappableTrials: ParsedTrial[] = useMemo(() => {
@@ -144,7 +144,7 @@ export default function MapTab({ trials }: { trials: Trial[] }) {
             No trials with valid GPS coordinates found. Upload trial data with GPS to see them on the map.
           </div>
         ) : (
-          <TrialMap trials={filteredTrials} getCropColor={getCropColor} />
+          <TrialMap trials={filteredTrials} getCropColor={getCropColor} visible={visible} />
         )}
       </div>
     </div>

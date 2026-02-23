@@ -164,7 +164,8 @@ export default function FieldDetailTabs({
       </div>
 
       {/* Tab content */}
-      {activeTab === 'map' && (
+      {/* Map tab — kept mounted to preserve Leaflet state across tab switches */}
+      <div style={{ display: activeTab === 'map' ? undefined : 'none' }}>
         <div className="space-y-4">
           <FieldMapWrapper
             fieldId={field.id}
@@ -177,13 +178,14 @@ export default function FieldDetailTabs({
             trialGisLayers={trialGisLayers}
             fieldTrials={fieldTrials}
             trialApplications={trialApplications}
+            visible={activeTab === 'map'}
           />
           <FieldAnnotationsPanel
             fieldId={field.id}
             annotations={annotations}
           />
         </div>
-      )}
+      </div>
 
       {activeTab === 'weather' && (
         <WeatherTab
