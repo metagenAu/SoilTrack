@@ -14,6 +14,7 @@ import EditableField from '@/components/trials/EditableField'
 import TrialFieldsPanel from '@/components/trials/TrialFieldsPanel'
 import TrialApplicationsPanel from '@/components/trials/TrialApplicationsPanel'
 import type { TrialApplication } from '@/components/trials/TrialApplicationsPanel'
+import ApplicationZoneAnalysis from '@/components/trials/ApplicationZoneAnalysis'
 import WeatherTab from '@/components/weather/WeatherTab'
 import { parseGPS } from '@/lib/weather'
 import { createClient } from '@/lib/supabase/client'
@@ -96,7 +97,8 @@ export default function TrialDetailTabs({
     return data || []
   }, [])
 
-  const fetchMapData = useCallback(async (supabase: any, trialId: string) => {
+  // Fetch spatial data (chemistry, GIS layers) — used by both Map and Applications (zone analysis) tabs
+  const fetchSpatialData = useCallback(async (supabase: any, trialId: string) => {
     const fieldIds = linkedFieldsRef.current.map((lf: any) => lf.field_id).filter(Boolean)
     const queries: Promise<any>[] = [
       supabase.from('soil_chemistry').select('*').eq('trial_id', trialId),
@@ -117,7 +119,15 @@ export default function TrialDetailTabs({
 
   const { data: metadata, loading: metadataLoading, error: metadataError } = useLazyTabData(trial.id, activeTab, 'Assay Results', fetchMetadata, [])
   const { data: photos, loading: photosLoading, error: photosError } = useLazyTabData(trial.id, activeTab, 'Photos', fetchPhotos, [])
-  const { data: mapData, loading: mapLoading, error: mapError } = useLazyTabData(trial.id, activeTab, 'Map', fetchMapData)
+  const { data: mapData, loading: mapLoading, error: mapError } = useLazyTabData(trial.id, activeTab, 'Map', fetchSpatialData)
+
+  // Zone analysis data — lazy-loaded when Applications tab is opened and applications exist
+  const { data: zoneAnalysisData, loading: zoneLoading, error: zoneError } = useLazyTabData(
+    trial.id,
+    applications.length > 0 ? activeTab : '',
+    'Applications',
+    fetchSpatialData
+  )
 
   return (
     <div>
@@ -213,14 +223,34 @@ export default function TrialDetailTabs({
       )}
 
       {activeTab === 'Applications' && (
-        <div className="card">
-          <TrialApplicationsPanel
-            trialId={trial.id}
-            applications={applications}
-            treatments={treatments}
-            onApplicationsChange={setApplications}
-          />
-        </div>
+        <>
+          <div className="card">
+            <TrialApplicationsPanel
+              trialId={trial.id}
+              applications={applications}
+              treatments={treatments}
+              onApplicationsChange={setApplications}
+            />
+          </div>
+          {applications.length > 0 && (
+            <div className="card mt-4">
+              {zoneLoading ? (
+                <p className="text-sm text-brand-grey-1 py-8 text-center">Loading zone analysis data…</p>
+              ) : zoneError ? (
+                <p className="text-sm text-red-600 py-8 text-center">Failed to load spatial data. Please refresh the page.</p>
+              ) : zoneAnalysisData ? (
+                <ApplicationZoneAnalysis
+                  trialId={trial.id}
+                  applications={applications}
+                  samples={samples}
+                  soilChemistry={zoneAnalysisData.soilChemistry}
+                  gisLayers={zoneAnalysisData.gisLayers}
+                  customLayers={zoneAnalysisData.customLayers}
+                />
+              ) : null}
+            </div>
+          )}
+        </>
       )}
 
       {activeTab === 'Soil Health' && (
