@@ -10,26 +10,23 @@
  *   - Scatter plots of application rate vs layer metric values with OLS regression
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
-  ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Line, ComposedChart, Legend,
+  Scatter, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ComposedChart,
   BarChart, Bar, Cell, ErrorBar,
 } from 'recharts'
-import { BarChart3, TrendingUp, Table, ChevronDown, ChevronRight, Download } from 'lucide-react'
+import { BarChart3, TrendingUp, Table, Download } from 'lucide-react'
 import Button from '@/components/ui/Button'
-import { createClient } from '@/lib/supabase/client'
 import type { FeatureCollection } from 'geojson'
 import type { TrialApplication } from '@/components/trials/TrialApplicationsPanel'
 import {
   convexHullFromFC,
   extractPolygonRings,
-  pointInPolygon,
   pointInAnyPolygon,
   computeStats,
   linearRegression,
   type ZoneStats,
-  type RegressionResult,
 } from '@/lib/geo-utils'
 
 // ---------- Types ----------
@@ -365,7 +362,7 @@ function exportStatsCSV(results: ZoneResult[], metrics: DiscoveredMetric[]) {
     }
   }
 
-  const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n')
+  const csv = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -534,39 +531,40 @@ function RegressionPlot({ results, metricKey, metricLabel, metricUnit }: {
   metricLabel: string
   metricUnit?: string
 }) {
-  // Parse numeric rates from application zones
-  const scatterData: { x: number; y: number; zone: string; color: string }[] = []
-  const rateXs: number[] = []
-  const metricYs: number[] = []
+  // Memoize scatter data + regression together so we don't recompute on every render
+  const { scatterData, regression, xMin, xMax } = useMemo(() => {
+    const scatter: { x: number; y: number; zone: string; color: string }[] = []
+    const xs: number[] = []
+    const ys: number[] = []
 
-  for (let idx = 0; idx < results.length; idx++) {
-    const zone = results[idx]
-    const rateStr = zone.application.rate
-    if (!rateStr) continue
-    const rateNum = parseFloat(rateStr.replace(/[^0-9.\-]/g, ''))
-    if (isNaN(rateNum)) continue
+    for (let idx = 0; idx < results.length; idx++) {
+      const zone = results[idx]
+      const rateStr = zone.application.rate
+      if (!rateStr) continue
+      const rateNum = parseFloat(rateStr.replace(/[^0-9.\-]/g, ''))
+      if (isNaN(rateNum)) continue
 
-    const stats = zone.statsByMetric.get(metricKey)
-    if (!stats) continue
+      const stats = zone.statsByMetric.get(metricKey)
+      if (!stats) continue
 
-    const color = ZONE_COLORS[idx % ZONE_COLORS.length]
-    for (const v of stats.values) {
-      scatterData.push({ x: rateNum, y: v, zone: zone.application.name, color })
-      rateXs.push(rateNum)
-      metricYs.push(v)
+      const color = ZONE_COLORS[idx % ZONE_COLORS.length]
+      for (const v of stats.values) {
+        scatter.push({ x: rateNum, y: v, zone: zone.application.name, color })
+        xs.push(rateNum)
+        ys.push(v)
+      }
     }
-  }
 
-  const regression = useMemo(() => {
-    if (rateXs.length < 2) return null
-    return linearRegression(rateXs, metricYs)
-  }, [rateXs, metricYs])
+    const reg = xs.length >= 2 ? linearRegression(xs, ys) : null
+    return {
+      scatterData: scatter,
+      regression: reg,
+      xMin: xs.length > 0 ? Math.min(...xs) : 0,
+      xMax: xs.length > 0 ? Math.max(...xs) : 0,
+    }
+  }, [results, metricKey])
 
   if (scatterData.length < 2) return null
-
-  // Build regression line endpoints
-  const xMin = Math.min(...rateXs)
-  const xMax = Math.max(...rateXs)
   const lineData = regression ? [
     { x: xMin, y: regression.intercept + regression.slope * xMin },
     { x: xMax, y: regression.intercept + regression.slope * xMax },

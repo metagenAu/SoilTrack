@@ -5,7 +5,7 @@
  * to extract coordinates from GeoJSON features.
  */
 
-import type { FeatureCollection, Geometry, Position } from 'geojson'
+import type { FeatureCollection, Geometry } from 'geojson'
 
 // ---------- Convex Hull (Andrew's monotone chain) ----------
 
@@ -309,7 +309,7 @@ function incompleteBeta(x: number, a: number, b: number): number {
       if (isEven) {
         numerator = (m2 * (b - m2) * x) / ((a + k - 1) * (a + k))
       } else {
-        numerator = -((a + m2) * (a + b + m2) * x) / ((a + k) * (a + k + 1))
+        numerator = -((a + m2) * (a + b + m2) * x) / ((a + k - 1) * (a + k))
       }
     }
 
@@ -327,7 +327,7 @@ function incompleteBeta(x: number, a: number, b: number): number {
   return (prefactor / a) * f
 }
 
-/** Stirling's approximation for ln(Gamma(x)) */
+/** Lanczos approximation for ln(Gamma(x)) */
 function lnGamma(x: number): number {
   if (x <= 0) return 0
   // Lanczos approximation

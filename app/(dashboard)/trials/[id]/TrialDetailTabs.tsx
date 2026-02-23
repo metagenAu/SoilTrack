@@ -119,15 +119,21 @@ export default function TrialDetailTabs({
 
   const { data: metadata, loading: metadataLoading, error: metadataError } = useLazyTabData(trial.id, activeTab, 'Assay Results', fetchMetadata, [])
   const { data: photos, loading: photosLoading, error: photosError } = useLazyTabData(trial.id, activeTab, 'Photos', fetchPhotos, [])
-  const { data: mapData, loading: mapLoading, error: mapError } = useLazyTabData(trial.id, activeTab, 'Map', fetchSpatialData)
 
-  // Zone analysis data — lazy-loaded when Applications tab is opened and applications exist
-  const { data: zoneAnalysisData, loading: zoneLoading, error: zoneError } = useLazyTabData(
-    trial.id,
-    applications.length > 0 ? activeTab : '',
-    'Applications',
-    fetchSpatialData
+  // Spatial data (chemistry, GIS layers) — shared by Map and Applications zone analysis.
+  // Trigger fetch on whichever tab is visited first to avoid a double-fetch.
+  const spatialTrigger = (activeTab === 'Map' || (activeTab === 'Applications' && applications.length > 0))
+    ? 'spatialNeeded' : ''
+  const { data: spatialData, loading: spatialLoading, error: spatialError } = useLazyTabData(
+    trial.id, spatialTrigger, 'spatialNeeded', fetchSpatialData
   )
+  // Aliases for downstream usage
+  const mapData = spatialData
+  const mapLoading = spatialLoading
+  const mapError = spatialError
+  const zoneAnalysisData = spatialData
+  const zoneLoading = spatialLoading
+  const zoneError = spatialError
 
   return (
     <div>
