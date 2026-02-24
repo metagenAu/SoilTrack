@@ -5,7 +5,7 @@ import { Upload, Trash2, Loader2, Plus, Link2, Pencil } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import ProductTag from '@/components/ui/ProductTag'
-import { detectGISFileType, parseGISFile, sanitizeFeatures, GIS_ACCEPT } from '@/lib/parsers/gis'
+import { detectGISFileType, parseGISFile, sanitizeFeatures, compactGeoJSON, GIS_ACCEPT } from '@/lib/parsers/gis'
 import { formatDate } from '@/lib/utils'
 import type { FeatureCollection } from 'geojson'
 
@@ -193,6 +193,10 @@ export default function TrialApplicationsPanel({
     setSaving(true)
     setError(null)
     try {
+      // Compact shapefile GeoJSON to reduce payload size (truncate coordinate
+      // precision, strip null bytes) so it stays under platform body-size limits.
+      const compacted = compactGeoJSON(formGeojson)
+
       const payload = {
         name: formName.trim(),
         trt_number: formTrt === '' ? null : formTrt,
@@ -200,7 +204,7 @@ export default function TrialApplicationsPanel({
         product: formProduct || null,
         rate: formRate || null,
         date_applied: formDate || null,
-        geojson: formGeojson,
+        geojson: compacted,
         geojson_source: formSource,
         notes: formNotes || null,
       }
@@ -221,8 +225,13 @@ export default function TrialApplicationsPanel({
       }
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to save application.')
+        const data = await res.json().catch(() => null)
+        throw new Error(
+          data?.error ||
+            (res.status === 413
+              ? 'The application zone file is too large. Try simplifying the geometry or converting to GeoJSON.'
+              : `Failed to save application (HTTP ${res.status}).`)
+        )
       }
 
       const saved = await res.json()

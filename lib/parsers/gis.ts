@@ -55,6 +55,63 @@ export function sanitizeFeatures(fc: FeatureCollection): FeatureCollection {
   return { ...fc, features: clean }
 }
 
+/**
+ * Truncate coordinate precision to reduce GeoJSON payload size.
+ * 6 decimal places ≈ 10 cm accuracy — more than enough for application zones.
+ * Shapefiles often carry 15+ decimal places, inflating the JSON payload.
+ */
+const COORD_PRECISION = 1_000_000 // 10^6
+
+function truncateCoords(coords: unknown): unknown {
+  if (typeof coords === 'number') {
+    return Math.round(coords * COORD_PRECISION) / COORD_PRECISION
+  }
+  if (Array.isArray(coords)) return coords.map(truncateCoords)
+  return coords
+}
+
+function compactGeometry(geom: Geometry | null | undefined): Geometry | null {
+  if (!geom || typeof geom !== 'object') return null
+  if (geom.type === 'GeometryCollection') {
+    return {
+      ...geom,
+      geometries: (geom.geometries || []).map(
+        (g) => compactGeometry(g) as Geometry
+      ),
+    }
+  }
+  return { ...geom, coordinates: truncateCoords((geom as any).coordinates) } as Geometry
+}
+
+/**
+ * Create a compact copy of a FeatureCollection by truncating coordinate
+ * precision and stripping null bytes from string property values.
+ *
+ * Use this before sending GeoJSON to the server to keep the request body
+ * under platform size limits (Vercel 4.5 MB, nginx default 1 MB, etc.).
+ */
+export function compactGeoJSON(fc: FeatureCollection): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: fc.features.map((f) => ({
+      type: 'Feature' as const,
+      geometry: compactGeometry(f.geometry)!,
+      properties: sanitizeProps(f.properties || {}),
+    })),
+  }
+}
+
+/** Remove null bytes (\u0000) from string values — PostgreSQL JSONB rejects them. */
+function sanitizeProps(
+  props: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, val] of Object.entries(props)) {
+    out[key] = typeof val === 'string' ? val.replace(/\0/g, '') : val
+  }
+  return out
+}
+
 const GIS_EXTENSIONS: Record<string, GISFileType> = {
   '.geojson': 'geojson',
   '.kml': 'kml',
